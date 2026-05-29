@@ -482,6 +482,32 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.brief-markdown {
+  overflow-wrap: anywhere;
+}
+
+.brief-markdown > :first-child {
+  margin-top: 0;
+}
+
+.brief-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.brief-markdown p {
+  margin: 0;
+}
+
+.brief-markdown ul,
+.brief-markdown ol {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.brief-markdown code {
+  font-size: 0.9em;
+}
+
 @media (max-width: 980px) {
   .room-view {
     height: auto;

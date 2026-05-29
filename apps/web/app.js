@@ -10,22 +10,18 @@ const members = [
   ["critic", "Critic", "Finds weak spots and asks hard judge questions.", "#7c3aed"]
 ].map(([id, name, role, color]) => ({ id, name, role, color }));
 
+const stages = ["Framing", "Brainstorming", "Feasibility", "Challenge", "Convergence", "Action Plan", "Pitch Prep"];
+const proposalKeywords = ["建议", "定位", "目标", "用户", "方案", "方向", "差异化", "定义", "proposal", "position", "goal", "user"];
+const actionKeywords = ["任务", "下一步", "立刻", "24小时", "测试", "产出", "发布", "执行", "验证", "模板", "build", "next", "step", "test"];
+const riskKeywords = ["风险", "漏洞", "假设", "失败", "成本", "屏蔽", "节奏", "不够", "问题", "risk", "weak", "cost", "fail"];
+const questionKeywords = ["问题", "评委", "为什么", "是否", "如何证明", "怎么", "question", "why", "whether"];
+
 let apiBase = defaultApiBase;
 let meeting = null;
 let history = [];
 let stageIndex = 0;
 let totalTokens = 0;
 let isRunningMeeting = false;
-
-const stages = [
-  "Framing",
-  "Brainstorming",
-  "Feasibility",
-  "Challenge",
-  "Convergence",
-  "Action Plan",
-  "Pitch Prep"
-];
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
@@ -134,12 +130,10 @@ async function startMeeting() {
 function applyResult(result) {
   stageIndex = result.stageIndex ?? stageIndex;
   if (result.stage) stageBadge.textContent = result.stage;
-  if (Array.isArray(result.messages)) {
-    history = [...history, ...result.messages];
-  }
+  if (Array.isArray(result.messages)) history = [...history, ...result.messages];
   applyUsage(result.usage);
   renderMessages();
-  renderOutputs(result.outputs || {});
+  renderOutputs(buildLocalBrief(history));
 }
 
 function applyUsage(usage = {}) {
@@ -149,17 +143,15 @@ function applyUsage(usage = {}) {
 
 function renderSquad() {
   squadList.innerHTML = members
-    .map((member) => {
-      return `
-        <article class="member">
-          <span class="member-dot" style="background:${member.color}"></span>
-          <div>
-            <strong>${escapeHtml(member.name)}</strong>
-            <span>${escapeHtml(member.role)}</span>
-          </div>
-        </article>
-      `;
-    })
+    .map((member) => `
+      <article class="member">
+        <span class="member-dot" style="background:${member.color}"></span>
+        <div>
+          <strong>${escapeHtml(member.name)}</strong>
+          <span>${escapeHtml(member.role)}</span>
+        </div>
+      </article>
+    `)
     .join("");
 }
 
@@ -183,11 +175,8 @@ function renderMessageHtml(message) {
 
 function upsertMessage(message) {
   const existing = history.find((item) => item.id === message.id);
-  if (existing) {
-    Object.assign(existing, message);
-  } else {
-    history.push(message);
-  }
+  if (existing) Object.assign(existing, message);
+  else history.push(message);
   renderMessages();
 }
 
@@ -211,18 +200,18 @@ function finalizeMessage(message) {
 
 function renderOutputs(data) {
   const sections = [
-    ["Proposal", data.proposal],
-    ["Actions", data.actions],
+    ["Current Direction", data.proposal],
+    ["Next Actions", data.actions],
     ["Risks", data.risks],
-    ["Judge Questions", data.questions]
+    ["Open Questions", data.questions]
   ];
   outputs.innerHTML = sections
     .map(([title, items]) => {
-      const list = Array.isArray(items) && items.length ? items : ["Waiting for the squad to discuss this."];
+      const list = Array.isArray(items) && items.length ? items : ["Pending later stages."];
       return `
         <section class="output-block">
           <h4>${title}</h4>
-          <ul>${list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          <ul>${list.map((item) => `<li><div class="brief-markdown">${renderMarkdown(item)}</div></li>`).join("")}</ul>
         </section>
       `;
     })
@@ -250,10 +239,7 @@ async function postJson(path, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text);
-  }
+  if (!response.ok) throw new Error(await response.text());
   return response.json();
 }
 
@@ -265,12 +251,10 @@ async function postStream(path, payload) {
   });
   if (!response.ok || !response.body) {
     if (response.status === 404 && path.endsWith("/stream")) {
-      const result = await postJson(path.replace(/\/stream$/, ""), payload);
-      applyResult(result);
+      applyResult(await postJson(path.replace(/\/stream$/, ""), payload));
       return;
     }
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    throw new Error((await response.text()) || `Request failed: ${response.status}`);
   }
 
   const reader = response.body.getReader();
@@ -283,14 +267,10 @@ async function postStream(path, payload) {
     buffer += decoder.decode(value, { stream: true });
     const blocks = buffer.split("\n\n");
     buffer = blocks.pop() || "";
-    for (const block of blocks) {
-      handleStreamEvent(parseEventBlock(block));
-    }
+    for (const block of blocks) handleStreamEvent(parseEventBlock(block));
   }
 
-  if (buffer.trim()) {
-    handleStreamEvent(parseEventBlock(buffer));
-  }
+  if (buffer.trim()) handleStreamEvent(parseEventBlock(buffer));
 }
 
 function parseEventBlock(block) {
@@ -311,87 +291,71 @@ function handleStreamEvent(event) {
     if (data.stage) stageBadge.textContent = data.stage;
     return;
   }
-  if (event.type === "message_start") {
-    upsertMessage(data.message);
-    return;
-  }
-  if (event.type === "token") {
-    appendToken(data.id, data.token || "");
-    return;
-  }
-  if (event.type === "message_done") {
-    finalizeMessage(data.message);
-    return;
-  }
+  if (event.type === "message_start") return upsertMessage(data.message);
+  if (event.type === "token") return appendToken(data.id, data.token || "");
+  if (event.type === "message_done") return finalizeMessage(data.message);
   if (event.type === "done") {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
-    renderOutputs(mergeBriefs(buildLocalBrief(history), data.outputs || {}));
+    renderOutputs(buildLocalBrief(history));
     addStageProgressMessage(data.stage);
     return;
   }
-  if (event.type === "error") {
-    throw new Error(data.message || "Stream failed.");
-  }
+  if (event.type === "error") throw new Error(data.message || "Stream failed.");
 }
 
 function buildLocalBrief(messages) {
   const useful = messages.filter((message) => message.kind !== "system" && String(message.content || "").trim());
-  const bySpeaker = new Map(useful.map((message) => [message.speakerId, message]));
-  const text = useful.map((message) => message.content).join("\n");
-
   return {
-    proposal: compactBrief([
-      summarizeForBrief(bySpeaker.get("captain")),
-      summarizeForBrief(bySpeaker.get("strategist")),
-      summarizeForBrief(bySpeaker.get("ideator")),
-      ...pickBriefLines(text, ["建议", "定位", "目标", "用户", "方案", "proposal", "position"])
-    ]),
-    actions: compactBrief([
-      summarizeForBrief(bySpeaker.get("engineer")),
-      ...pickBriefLines(text, ["任务", "下一步", "立刻", "24小时", "测试", "产出", "build", "next", "step"])
-    ]),
-    risks: compactBrief([
-      summarizeForBrief(bySpeaker.get("critic")),
-      ...pickBriefLines(text, ["风险", "漏洞", "假设", "失败", "成本", "评委", "risk", "judge", "weak"])
-    ]),
-    questions: compactBrief([
-      ...pickBriefLines(text, ["问题", "为什么", "是否", "如何证明", "question", "why"]),
-      summarizeForBrief(bySpeaker.get("designer"))
-    ])
+    proposal: collectBriefItems(useful, ["captain", "strategist", "ideator"], proposalKeywords),
+    actions: collectBriefItems(useful, ["engineer", "captain", "designer"], actionKeywords),
+    risks: collectBriefItems(useful, ["critic", "engineer", "strategist"], riskKeywords),
+    questions: collectBriefItems(useful, ["critic", "strategist", "designer"], questionKeywords)
   };
 }
 
-function mergeBriefs(localBrief, serverBrief) {
-  return {
-    proposal: compactBrief([...(localBrief.proposal || []), ...(serverBrief.proposal || [])]),
-    actions: compactBrief([...(localBrief.actions || []), ...(serverBrief.actions || [])]),
-    risks: compactBrief([...(localBrief.risks || []), ...(serverBrief.risks || [])]),
-    questions: compactBrief([...(localBrief.questions || []), ...(serverBrief.questions || [])])
-  };
+function collectBriefItems(messages, speakerIds, keywords) {
+  const result = [];
+  for (const speakerId of speakerIds) {
+    const speakerMessages = messages.filter((message) => message.speakerId === speakerId).slice(-2);
+    for (const message of speakerMessages) {
+      const sentence = pickBestSentence(message.content, keywords);
+      if (sentence) result.push(`${message.speakerName || speakerId}: ${sentence}`);
+    }
+  }
+  return compactBrief(result);
 }
 
-function summarizeForBrief(message) {
-  if (!message?.content) return "";
-  const content = String(message.content).replace(/\s+/g, " ").trim();
-  const firstSentence = content.split(/[。！？]/).find((part) => part.trim().length >= 8) || content;
-  return `${message.speakerName || message.speakerId}: ${truncate(firstSentence.trim(), 120)}`;
+function pickBestSentence(content, keywords) {
+  const sentences = splitBriefSentences(content);
+  return sentences.find((sentence) => keywords.some((keyword) => sentence.toLowerCase().includes(keyword))) || sentences[0] || "";
 }
 
-function pickBriefLines(text, keywords) {
-  return String(text || "")
-    .split(/[。！？；\n.?!;]/)
-    .map((line) => line.trim())
-    .filter((line) => line.length >= 8)
-    .filter((line) => keywords.some((keyword) => line.toLowerCase().includes(keyword)))
-    .slice(-4);
+function splitBriefSentences(content) {
+  return String(content || "")
+    .replace(/\s+/g, " ")
+    .split(/[。！？；\n]/)
+    .map((line) => cleanBriefText(line))
+    .filter((line) => line.length >= 10)
+    .filter((line) => !/^好[，,]/.test(line))
+    .slice(0, 8);
+}
+
+function cleanBriefText(value) {
+  return String(value || "")
+    .replace(/^\s*[-*+]\s+/, "")
+    .replace(/^\s*\d+\.\s+/, "")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^>\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function compactBrief(items) {
   const seen = new Set();
   const result = items
-    .map((item) => String(item || "").trim())
+    .map((item) => cleanBriefText(item))
     .filter(Boolean)
     .filter((item) => {
       const key = normalizeBriefKey(item);
@@ -399,34 +363,17 @@ function compactBrief(items) {
       seen.add(key);
       return true;
     })
-    .slice(0, 5);
+    .slice(0, 4);
   return result.length ? result : ["Pending later stages."];
-}
-
-function truncate(text, max) {
-  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
 }
 
 function normalizeBriefKey(item) {
   return item
     .replace(/^[A-Za-z ]+:\s*/, "")
+    .replace(/\*\*/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
-}
-
-async function withBusy(button, label, task) {
-  const original = button.textContent;
-  button.disabled = true;
-  button.textContent = label;
-  try {
-    await task();
-  } catch (error) {
-    addSystemMessage(error.message || "Something went wrong.", "Error");
-  } finally {
-    button.disabled = false;
-    button.textContent = original;
-  }
 }
 
 function addStageProgressMessage(stage) {
@@ -450,6 +397,20 @@ function addSystemMessage(content, stage = "System") {
     createdAt: new Date().toISOString()
   });
   renderMessages();
+}
+
+async function withBusy(button, label, task) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = label;
+  try {
+    await task();
+  } catch (error) {
+    addSystemMessage(error.message || "Something went wrong.", "Error");
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
 }
 
 function renderMarkdown(markdown) {
@@ -476,28 +437,24 @@ function renderBasicMarkdown(source) {
       closeList();
       continue;
     }
-
     const heading = line.match(/^(#{1,4})\s+(.+)$/);
     if (heading) {
       closeList();
       html.push(`<h${heading[1].length}>${inlineMarkdown(heading[2])}</h${heading[1].length}>`);
       continue;
     }
-
     const unordered = line.match(/^[-*]\s+(.+)$/);
     if (unordered) {
       openList("ul");
       html.push(`<li>${inlineMarkdown(unordered[1])}</li>`);
       continue;
     }
-
     const ordered = line.match(/^\d+\.\s+(.+)$/);
     if (ordered) {
       openList("ol");
       html.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
       continue;
     }
-
     closeList();
     html.push(`<p>${inlineMarkdown(line)}</p>`);
   }
