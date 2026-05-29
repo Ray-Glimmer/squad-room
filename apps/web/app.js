@@ -238,6 +238,11 @@ async function postStream(path, payload) {
     body: JSON.stringify(payload)
   });
   if (!response.ok || !response.body) {
+    if (response.status === 404 && path.endsWith("/stream")) {
+      const result = await postJson(path.replace(/\/stream$/, ""), payload);
+      applyResult(result);
+      return;
+    }
     const text = await response.text();
     throw new Error(text || `Request failed: ${response.status}`);
   }

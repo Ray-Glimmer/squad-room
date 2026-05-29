@@ -37,6 +37,8 @@ cp .env.example apps/api/.env
 npm run api
 ```
 
+拉取更新后请重启 API 服务，尤其是前端或 API 路由发生变化时。
+
 打开前端：
 
 ```text

@@ -35,6 +35,8 @@ cp .env.example apps/api/.env
 npm run api
 ```
 
+Restart the API server after pulling updates, especially when frontend/API endpoints change.
+
 Open the web app:
 
 ```text
