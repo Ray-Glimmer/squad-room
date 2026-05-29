@@ -15,12 +15,24 @@ let meeting = null;
 let history = [];
 let stageIndex = 0;
 let totalTokens = 0;
+let isRunningMeeting = false;
+
+const stages = [
+  "Framing",
+  "Brainstorming",
+  "Feasibility",
+  "Challenge",
+  "Convergence",
+  "Action Plan",
+  "Pitch Prep"
+];
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
 const meetingForm = document.querySelector("#meetingForm");
 const loadDemoButton = document.querySelector("#loadDemoButton");
 const newMeetingButton = document.querySelector("#newMeetingButton");
+const runMeetingButton = document.querySelector("#runMeetingButton");
 const continueButton = document.querySelector("#continueButton");
 const summaryButton = document.querySelector("#summaryButton");
 const messageForm = document.querySelector("#messageForm");
@@ -73,6 +85,19 @@ continueButton.addEventListener("click", async () => {
   await withBusy(continueButton, "Thinking", async () => {
     await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
   });
+});
+
+runMeetingButton.addEventListener("click", async () => {
+  if (isRunningMeeting) return;
+  isRunningMeeting = true;
+  await withBusy(runMeetingButton, "Running", async () => {
+    while (stageIndex < stages.length - 1) {
+      await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
+    }
+    await postStream("/api/meeting/summary/stream", { meeting, history });
+    addSystemMessage("Meeting complete. The squad has reached a final brief for this run.", "Complete");
+  });
+  isRunningMeeting = false;
 });
 
 summaryButton.addEventListener("click", async () => {
@@ -302,6 +327,7 @@ function handleStreamEvent(event) {
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
     renderOutputs(data.outputs || {});
+    addStageProgressMessage(data.stage);
     return;
   }
   if (event.type === "error") {
@@ -316,20 +342,34 @@ async function withBusy(button, label, task) {
   try {
     await task();
   } catch (error) {
-    history.push({
-      id: crypto.randomUUID(),
-      speakerId: "system",
-      speakerName: "System",
-      kind: "system",
-      content: error.message || "Something went wrong.",
-      stage: "Error",
-      createdAt: new Date().toISOString()
-    });
-    renderMessages();
+    addSystemMessage(error.message || "Something went wrong.", "Error");
   } finally {
     button.disabled = false;
     button.textContent = original;
   }
+}
+
+function addStageProgressMessage(stage) {
+  if (!stage || stage === "Summary" || isRunningMeeting) return;
+  if (stageIndex >= stages.length - 1) {
+    addSystemMessage(`${stage} complete. The stage plan is finished; generate a Summary or add your own follow-up.`, "Stage Complete");
+    return;
+  }
+  const nextStage = stages[stageIndex + 1];
+  addSystemMessage(`${stage} complete. Next: ${nextStage}. Use Run Meeting to finish the remaining stages, or Next Stage to advance one step.`, "Stage Complete");
+}
+
+function addSystemMessage(content, stage = "System") {
+  history.push({
+    id: crypto.randomUUID(),
+    speakerId: "system",
+    speakerName: "System",
+    kind: "system",
+    content,
+    stage,
+    createdAt: new Date().toISOString()
+  });
+  renderMessages();
 }
 
 function renderMarkdown(markdown) {
@@ -342,7 +382,67 @@ function renderMarkdown(markdown) {
       FORBID_TAGS: ["style", "script", "iframe", "object", "embed"]
     });
   }
-  return escapeHtml(source).replace(/\n/g, "<br>");
+  return renderBasicMarkdown(source);
+}
+
+function renderBasicMarkdown(source) {
+  const lines = source.split(/\r?\n/);
+  const html = [];
+  let listType = "";
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) {
+      closeList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      closeList();
+      html.push(`<h${heading[1].length}>${inlineMarkdown(heading[2])}</h${heading[1].length}>`);
+      continue;
+    }
+
+    const unordered = line.match(/^[-*]\s+(.+)$/);
+    if (unordered) {
+      openList("ul");
+      html.push(`<li>${inlineMarkdown(unordered[1])}</li>`);
+      continue;
+    }
+
+    const ordered = line.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      openList("ol");
+      html.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    html.push(`<p>${inlineMarkdown(line)}</p>`);
+  }
+
+  closeList();
+  return html.join("");
+
+  function openList(type) {
+    if (listType === type) return;
+    closeList();
+    listType = type;
+    html.push(`<${type}>`);
+  }
+
+  function closeList() {
+    if (!listType) return;
+    html.push(`</${listType}>`);
+    listType = "";
+  }
+}
+
+function inlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+?)`/g, "<code>$1</code>");
 }
 
 function cssEscape(value) {
