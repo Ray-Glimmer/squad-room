@@ -1,7 +1,8 @@
 # squad-room
 
-Squad Room is a personal AI teammate room for competitions, projects, and serious brainstorming.
+[English](README.md) | [简体中文](README.zh-CN.md)
 
+Squad Room is a personal AI teammate room for competitions, projects, and serious brainstorming.
 
 The first open-source version is intentionally small:
 
@@ -106,3 +107,4 @@ squad-room/
 ## Status
 
 This is an early MVP scaffold for personal use and developer experimentation.
+
