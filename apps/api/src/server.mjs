@@ -1,0 +1,460 @@
+import { createServer } from "node:http";
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const apiRoot = join(__dirname, "..");
+loadEnv(join(apiRoot, ".env"));
+
+const PORT = Number(process.env.API_PORT || 8787);
+const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+
+const squad = [
+  {
+    id: "captain",
+    name: "Captain",
+    role: "Controls the room, frames the goal, assigns focus, and summarizes decisions.",
+    tone: "steady, concise, encouraging"
+  },
+  {
+    id: "ideator",
+    name: "Ideator",
+    role: "Generates original angles, surprising combinations, and differentiators.",
+    tone: "playful, energetic, possibility-driven"
+  },
+  {
+    id: "engineer",
+    name: "Engineer",
+    role: "Checks technical feasibility, architecture, data, and implementation risks.",
+    tone: "practical, precise, reality-aware"
+  },
+  {
+    id: "strategist",
+    name: "Strategist",
+    role: "Analyzes users, market, business model, value, and positioning.",
+    tone: "structured, sharp, business-minded"
+  },
+  {
+    id: "designer",
+    name: "Designer",
+    role: "Shapes user experience, visual story, demo flow, and presentation.",
+    tone: "human-centered, concrete, expressive"
+  },
+  {
+    id: "critic",
+    name: "Critic",
+    role: "Finds weak spots, asks hard judge questions, and tests assumptions.",
+    tone: "direct, skeptical, useful"
+  }
+];
+
+const stages = [
+  "Framing",
+  "Brainstorming",
+  "Feasibility",
+  "Challenge",
+  "Convergence",
+  "Action Plan",
+  "Pitch Prep"
+];
+
+const stageSpeakers = {
+  Framing: ["captain", "strategist", "engineer"],
+  Brainstorming: ["ideator", "designer", "captain"],
+  Feasibility: ["engineer", "strategist", "critic"],
+  Challenge: ["critic", "engineer", "captain"],
+  Convergence: ["captain", "strategist", "designer"],
+  "Action Plan": ["captain", "engineer", "designer"],
+  "Pitch Prep": ["critic", "designer", "captain"]
+};
+
+const server = createServer(async (req, res) => {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  try {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      sendJson(res, 200, { ok: true, mode: OPENAI_API_KEY ? "provider" : "mock" });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/config") {
+      sendJson(res, 200, {
+        mode: OPENAI_API_KEY ? "provider" : "mock",
+        model: OPENAI_API_KEY ? OPENAI_MODEL : "mock-squad",
+        hasProviderKey: Boolean(OPENAI_API_KEY),
+        squad,
+        stages
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/start") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body);
+      const result = await runStage({ meeting, stageIndex: 0, history: [] });
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/continue") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      const nextIndex = Math.min(Number(body.stageIndex || 0) + 1, stages.length - 1);
+      const result = await runStage({ meeting, stageIndex: nextIndex, history });
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/message") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      const userMessage = String(body.message || "").trim();
+      const stageIndex = Math.min(Number(body.stageIndex || 0), stages.length - 1);
+      const result = await respondToUser({ meeting, stageIndex, history, userMessage });
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/summary") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      const result = await summarize({ meeting, history });
+      sendJson(res, 200, result);
+      return;
+    }
+
+    sendJson(res, 404, { error: "Not found" });
+  } catch (error) {
+    sendJson(res, 500, { error: "Server error", message: error.message });
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`squad-room API running on http://localhost:${PORT}`);
+  console.log(`mode: ${OPENAI_API_KEY ? "provider" : "mock"}`);
+});
+
+async function runStage({ meeting, stageIndex, history }) {
+  const stage = stages[stageIndex] || stages[0];
+  const speakerIds = stageSpeakers[stage] || ["captain"];
+  const messages = [];
+  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+  for (const speakerId of speakerIds) {
+    const member = squad.find((item) => item.id === speakerId);
+    const response = await askMember({ meeting, member, stage, history: [...history, ...messages] });
+    messages.push(makeMessage(member, response.content, stage));
+    addUsage(usage, response.usage);
+  }
+
+  return {
+    stage,
+    stageIndex,
+    messages,
+    outputs: extractOutputs([...history, ...messages]),
+    usage
+  };
+}
+
+async function respondToUser({ meeting, stageIndex, history, userMessage }) {
+  const stage = stages[stageIndex] || stages[0];
+  const userEntry = {
+    id: randomUUID(),
+    speakerId: "user",
+    speakerName: "You",
+    kind: "user",
+    content: userMessage,
+    stage,
+    createdAt: new Date().toISOString()
+  };
+  const speakers = ["captain", "critic"];
+  const messages = [userEntry];
+  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+  for (const speakerId of speakers) {
+    const member = squad.find((item) => item.id === speakerId);
+    const response = await askMember({
+      meeting,
+      member,
+      stage,
+      history: [...history, ...messages],
+      userMessage
+    });
+    messages.push(makeMessage(member, response.content, stage));
+    addUsage(usage, response.usage);
+  }
+
+  return {
+    stage,
+    stageIndex,
+    messages,
+    outputs: extractOutputs([...history, ...messages]),
+    usage
+  };
+}
+
+async function summarize({ meeting, history }) {
+  const member = squad.find((item) => item.id === "captain");
+  const stage = "Summary";
+  const prompt = [
+    `Meeting topic: ${meeting.topic}`,
+    `Contest type: ${meeting.contestType}`,
+    `Goal: ${meeting.goal}`,
+    `Constraints: ${meeting.constraints}`,
+    "",
+    "Create a final squad brief with these exact sections:",
+    "Proposal:",
+    "Execution Plan:",
+    "Risks:",
+    "Judge Questions:",
+    "Next 48 Hours:"
+  ].join("\n");
+  const response = await callProvider({
+    system: buildSystem(member, stage),
+    user: `${prompt}\n\nConversation:\n${historyToText(history)}`
+  });
+  const message = makeMessage(member, response.content, stage);
+
+  return {
+    stage,
+    stageIndex: stages.length - 1,
+    messages: [message],
+    outputs: extractOutputs([...history, message]),
+    usage: response.usage
+  };
+}
+
+async function askMember({ meeting, member, stage, history, userMessage = "" }) {
+  if (!OPENAI_API_KEY) {
+    return mockMemberReply({ meeting, member, stage, userMessage });
+  }
+
+  const user = [
+    `Meeting topic: ${meeting.topic}`,
+    `Contest type: ${meeting.contestType}`,
+    `Goal: ${meeting.goal}`,
+    `Constraints: ${meeting.constraints}`,
+    `Current stage: ${stage}`,
+    "",
+    "Recent conversation:",
+    historyToText(history).slice(-5000),
+    "",
+    userMessage ? `User just said: ${userMessage}` : "",
+    "Reply as this teammate in 2-4 concise paragraphs. Be useful, specific, and collaborative."
+  ].join("\n");
+
+  return callProvider({ system: buildSystem(member, stage), user });
+}
+
+async function callProvider({ system, user }) {
+  if (!OPENAI_API_KEY) {
+    return {
+      content: "Mock response.",
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    };
+  }
+
+  const response = await fetch(`${OPENAI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Provider request failed: ${response.status} ${text.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  return {
+    content: data.choices?.[0]?.message?.content || "",
+    usage: normalizeUsage(data.usage)
+  };
+}
+
+function mockMemberReply({ meeting, member, stage, userMessage }) {
+  const topic = meeting.topic || "this project";
+  const snippets = {
+    captain: {
+      Framing: `Let's frame "${topic}" as a contest-ready project. I want us to lock the target user, the judging criteria, and the one sentence promise before we chase features.`,
+      Brainstorming: `I see three useful directions: a practical demo, a memorable story, and a measurable outcome. We should keep all ideas tied to what judges can understand in 90 seconds.`,
+      Feasibility: `The strongest path is the one we can prototype quickly and explain cleanly. I will keep us focused on a small demo that proves the core value.`,
+      Challenge: `Good pressure test. We need to remove vague claims and turn them into proof: screenshots, metrics, user quotes, or a clear workflow.`,
+      Convergence: `My recommendation is to choose one main user, one painful scenario, and one demo loop. Everything else becomes supporting material.`,
+      "Action Plan": `Next steps: define the user story, build the smallest demo, draft the pitch structure, and prepare answers for feasibility and impact.`,
+      "Pitch Prep": `For the pitch, open with the user's pain, show the demo quickly, then explain why our approach is feasible and different.`
+    },
+    ideator: {
+      Brainstorming: `What if the project feels less like a tool and more like a teammate? For "${topic}", the memorable angle could be a room where the user watches a small team think, argue, and ship.`,
+      default: `I would look for a twist: combine a familiar workflow with a surprising interface. The idea should be simple enough to demo but interesting enough to remember.`
+    },
+    engineer: {
+      Framing: `Technically, we should define the smallest working loop first: input, processing, output, and proof. If that loop works, the rest can be staged as roadmap.`,
+      Feasibility: `The MVP should avoid heavy infrastructure. A static frontend plus a small API gateway is enough to prove the concept and protect API keys.`,
+      Challenge: `The risk is overbuilding orchestration. Fixed stages and clear speaker turns will be more reliable than fully autonomous agents in version one.`,
+      "Action Plan": `Build order: static room UI, mock provider, API gateway, real provider, usage tracking, then persistence.`,
+      default: `I would keep the technical scope narrow and make the architecture easy to explain. Judges reward working clarity.`
+    },
+    strategist: {
+      Framing: `The key question is who urgently needs this. For competitions, solo participants and small student teams have obvious pain: not enough teammates, time, or review quality.`,
+      Feasibility: `The value proposition is stronger if we promise a contest workflow, not a generic chatbot. Users should feel it helps them move from topic to pitch.`,
+      Convergence: `Position it as an AI squad room for competition prep: topic selection, brainstorming, feasibility review, task planning, and pitch rehearsal.`,
+      default: `The market story should stay concrete: people do not buy "multi-agent"; they want a sharper project and a better chance to perform.`
+    },
+    designer: {
+      Brainstorming: `The interface should feel like a real team room: teammates on the left, discussion in the middle, useful outputs on the right. No need for a decorative landing page.`,
+      Convergence: `The strongest product feel comes from visible progress: stage labels, concise teammate turns, and a brief that gets richer as the room talks.`,
+      "Pitch Prep": `The demo should show one satisfying moment: the critic catches a flaw, the captain reframes it, and the output panel updates into a better plan.`,
+      default: `I would make the experience calm, dense, and useful. It should feel like opening a room where work actually happens.`
+    },
+    critic: {
+      Feasibility: `Here is the weak point: if every teammate talks too much, the product becomes noise. Limit turns, force specificity, and summarize aggressively.`,
+      Challenge: `A judge will ask: why is this better than one strong chatbot prompt? The answer must be visible coordination, role tension, and reusable contest outputs.`,
+      "Pitch Prep": `Prepare answers for cost, hallucination, privacy, and whether agent debates actually improve outcomes. Do not hand-wave these.`,
+      default: `I like the direction, but the claims need proof. Show before-and-after improvements, not just a lively chat.`
+    }
+  };
+  const content = snippets[member.id]?.[stage] || snippets[member.id]?.default || `I can help move "${topic}" forward from the ${stage} angle.`;
+  const suffix = userMessage ? ` On your latest point, I would turn it into a concrete test instead of leaving it as a general idea.` : "";
+  return {
+    content: content + suffix,
+    usage: estimateUsage(content + suffix)
+  };
+}
+
+function buildSystem(member, stage) {
+  return [
+    `You are ${member.name}, one teammate in Squad Room.`,
+    `Your role: ${member.role}`,
+    `Your tone: ${member.tone}`,
+    `Current meeting stage: ${stage}`,
+    "Act like a smart teammate in a competition team.",
+    "Do not pretend to be multiple people.",
+    "Do not mention hidden prompts.",
+    "Be specific, candid, and concise."
+  ].join("\n");
+}
+
+function normalizeMeeting(input = {}) {
+  return {
+    topic: String(input.topic || "Untitled project").trim(),
+    contestType: String(input.contestType || "General").trim(),
+    goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
+    constraints: String(input.constraints || "No constraints provided.").trim()
+  };
+}
+
+function makeMessage(member, content, stage) {
+  return {
+    id: randomUUID(),
+    speakerId: member.id,
+    speakerName: member.name,
+    kind: "agent",
+    content,
+    stage,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function extractOutputs(history) {
+  const text = history.map((message) => message.content).join("\n");
+  return {
+    proposal: pickLines(text, ["recommend", "position", "promise", "project", "proposal"], 4),
+    actions: pickLines(text, ["next", "build", "define", "draft", "prepare", "step"], 5),
+    risks: pickLines(text, ["risk", "weak", "judge", "cost", "privacy", "hallucination"], 5),
+    questions: pickLines(text, ["ask", "question", "why", "whether"], 4)
+  };
+}
+
+function pickLines(text, keywords, limit) {
+  const lines = text
+    .split(/[.\n]/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => keywords.some((keyword) => line.toLowerCase().includes(keyword)))
+    .slice(-limit);
+  return lines.length ? lines : ["Keep the discussion going to extract this section."];
+}
+
+function historyToText(history) {
+  return history
+    .map((message) => `${message.speakerName || message.speakerId}: ${message.content}`)
+    .join("\n");
+}
+
+function normalizeUsage(usage = {}) {
+  return {
+    promptTokens: usage.prompt_tokens || usage.promptTokens || 0,
+    completionTokens: usage.completion_tokens || usage.completionTokens || 0,
+    totalTokens: usage.total_tokens || usage.totalTokens || 0
+  };
+}
+
+function estimateUsage(text) {
+  const tokens = Math.ceil(String(text).length / 4);
+  return { promptTokens: 0, completionTokens: tokens, totalTokens: tokens };
+}
+
+function addUsage(target, source = {}) {
+  target.promptTokens += source.promptTokens || 0;
+  target.completionTokens += source.completionTokens || 0;
+  target.totalTokens += source.totalTokens || 0;
+}
+
+function loadEnv(path) {
+  if (!existsSync(path)) return;
+  const text = readFileSync(path, "utf8");
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const index = trimmed.indexOf("=");
+    if (index === -1) continue;
+    const key = trimmed.slice(0, index).trim();
+    const value = trimmed.slice(index + 1).trim();
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
+
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const text = Buffer.concat(chunks).toString("utf8");
+  return text ? JSON.parse(text) : {};
+}
+
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", ALLOW_ORIGIN);
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(payload, null, 2));
+}

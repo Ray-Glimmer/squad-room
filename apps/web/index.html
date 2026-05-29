@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Squad Room</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="setupView" class="setup-view">
+        <div class="brand-row">
+          <div class="brand-mark">SR</div>
+          <div>
+            <p class="eyebrow">Personal AI competition team</p>
+            <h1>Squad Room</h1>
+          </div>
+        </div>
+
+        <form id="meetingForm" class="setup-grid">
+          <label>
+            Topic
+            <input name="topic" placeholder="AI education contest idea" required />
+          </label>
+          <label>
+            Contest type
+            <select name="contestType">
+              <option>General</option>
+              <option>Business Competition</option>
+              <option>Computer Science Competition</option>
+              <option>Design Competition</option>
+              <option>Investment Competition</option>
+              <option>Hackathon</option>
+            </select>
+          </label>
+          <label>
+            Goal
+            <input name="goal" placeholder="Get from rough idea to pitch-ready plan" />
+          </label>
+          <label>
+            Constraints
+            <textarea name="constraints" placeholder="Deadline, team size, required deliverables, tools, budget..."></textarea>
+          </label>
+          <label>
+            API endpoint
+            <input name="apiBase" value="http://localhost:8787" />
+          </label>
+          <div class="setup-actions">
+            <button type="submit" class="primary-button">Open Room</button>
+            <button type="button" id="loadDemoButton" class="ghost-button">Load Demo</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="roomView" class="room-view hidden">
+        <header class="topbar">
+          <div>
+            <p id="statusLine" class="eyebrow">Mock mode</p>
+            <h2 id="roomTitle">Squad Room</h2>
+          </div>
+          <div class="topbar-actions">
+            <span id="stageBadge" class="stage-badge">Framing</span>
+            <button id="newMeetingButton" class="ghost-button">New</button>
+          </div>
+        </header>
+
+        <aside class="squad-panel">
+          <h3>Teammates</h3>
+          <div id="squadList" class="squad-list"></div>
+        </aside>
+
+        <section class="chat-panel">
+          <div id="messageList" class="message-list"></div>
+          <form id="messageForm" class="composer">
+            <input id="messageInput" placeholder="Interrupt, ask a teammate, or add constraints..." />
+            <button type="submit" class="primary-button">Send</button>
+          </form>
+        </section>
+
+        <aside class="output-panel">
+          <div class="output-header">
+            <h3>Brief</h3>
+            <span id="usageLine">0 tokens</span>
+          </div>
+          <div id="outputs" class="outputs"></div>
+          <div class="output-actions">
+            <button id="continueButton" class="primary-button">Continue</button>
+            <button id="summaryButton" class="ghost-button">Summary</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
