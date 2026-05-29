@@ -660,23 +660,87 @@ function makeMessage(member, content, stage) {
 }
 
 function extractOutputs(history) {
-  const text = history.map((message) => message.content).join("\n");
+  const messages = Array.isArray(history)
+    ? history.filter((message) => message.kind !== "system" && String(message.content || "").trim())
+    : [];
+  const bySpeaker = new Map();
+  for (const message of messages) {
+    bySpeaker.set(message.speakerId, message);
+  }
+
+  const captain = bySpeaker.get("captain");
+  const strategist = bySpeaker.get("strategist");
+  const engineer = bySpeaker.get("engineer");
+  const designer = bySpeaker.get("designer");
+  const critic = bySpeaker.get("critic");
+  const ideator = bySpeaker.get("ideator");
+  const text = messages.map((message) => message.content).join("\n");
+
   return {
-    proposal: pickLines(text, ["recommend", "position", "promise", "project", "proposal"], 4),
-    actions: pickLines(text, ["next", "build", "define", "draft", "prepare", "step"], 5),
-    risks: pickLines(text, ["risk", "weak", "judge", "cost", "privacy", "hallucination"], 5),
-    questions: pickLines(text, ["ask", "question", "why", "whether"], 4)
+    proposal: compactItems([
+      summarizeMessage(captain),
+      summarizeMessage(strategist),
+      summarizeMessage(ideator)
+    ], pickLines(text, ["建议", "定位", "目标", "用户", "方案", "promise", "position", "proposal"], 4)),
+    actions: compactItems([
+      summarizeMessage(engineer),
+      ...pickLines(text, ["任务", "下一步", "立刻", "24小时", "测试", "产出", "build", "next", "step"], 4)
+    ]),
+    risks: compactItems([
+      summarizeMessage(critic),
+      ...pickLines(text, ["风险", "漏洞", "假设", "失败", "成本", "质疑", "risk", "weak", "judge"], 4)
+    ]),
+    questions: compactItems([
+      ...pickLines(text, ["问题", "评委", "为什么", "是否", "如何证明", "ask", "question", "why"], 4),
+      summarizeMessage(designer)
+    ])
   };
 }
 
 function pickLines(text, keywords, limit) {
   const lines = text
-    .split(/[.\n]/)
+    .split(/[。！？；\n.?!;]/)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.length >= 8)
     .filter((line) => keywords.some((keyword) => line.toLowerCase().includes(keyword)))
     .slice(-limit);
-  return lines.length ? lines : ["Keep the discussion going to extract this section."];
+  return lines;
+}
+
+function summarizeMessage(message) {
+  if (!message?.content) return "";
+  const content = String(message.content).replace(/\s+/g, " ").trim();
+  if (!content) return "";
+  const firstSentence = content.split(/[。！？]/).find((part) => part.trim().length >= 8) || content;
+  const label = message.speakerName || message.speakerId || "Teammate";
+  return `${label}: ${truncate(firstSentence.trim(), 140)}`;
+}
+
+function compactItems(primary, fallback = []) {
+  const seen = new Set();
+  const items = [...primary, ...fallback]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = normalizeBriefKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 5);
+  return items.length ? items : ["Pending later stages."];
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function normalizeBriefKey(item) {
+  return item
+    .replace(/^[A-Za-z ]+:\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function historyToText(history) {

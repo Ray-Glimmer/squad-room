@@ -206,6 +206,7 @@ function appendToken(id, token) {
 
 function finalizeMessage(message) {
   upsertMessage(message);
+  renderOutputs(buildLocalBrief(history));
 }
 
 function renderOutputs(data) {
@@ -326,13 +327,92 @@ function handleStreamEvent(event) {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
-    renderOutputs(data.outputs || {});
+    renderOutputs(mergeBriefs(buildLocalBrief(history), data.outputs || {}));
     addStageProgressMessage(data.stage);
     return;
   }
   if (event.type === "error") {
     throw new Error(data.message || "Stream failed.");
   }
+}
+
+function buildLocalBrief(messages) {
+  const useful = messages.filter((message) => message.kind !== "system" && String(message.content || "").trim());
+  const bySpeaker = new Map(useful.map((message) => [message.speakerId, message]));
+  const text = useful.map((message) => message.content).join("\n");
+
+  return {
+    proposal: compactBrief([
+      summarizeForBrief(bySpeaker.get("captain")),
+      summarizeForBrief(bySpeaker.get("strategist")),
+      summarizeForBrief(bySpeaker.get("ideator")),
+      ...pickBriefLines(text, ["建议", "定位", "目标", "用户", "方案", "proposal", "position"])
+    ]),
+    actions: compactBrief([
+      summarizeForBrief(bySpeaker.get("engineer")),
+      ...pickBriefLines(text, ["任务", "下一步", "立刻", "24小时", "测试", "产出", "build", "next", "step"])
+    ]),
+    risks: compactBrief([
+      summarizeForBrief(bySpeaker.get("critic")),
+      ...pickBriefLines(text, ["风险", "漏洞", "假设", "失败", "成本", "评委", "risk", "judge", "weak"])
+    ]),
+    questions: compactBrief([
+      ...pickBriefLines(text, ["问题", "为什么", "是否", "如何证明", "question", "why"]),
+      summarizeForBrief(bySpeaker.get("designer"))
+    ])
+  };
+}
+
+function mergeBriefs(localBrief, serverBrief) {
+  return {
+    proposal: compactBrief([...(localBrief.proposal || []), ...(serverBrief.proposal || [])]),
+    actions: compactBrief([...(localBrief.actions || []), ...(serverBrief.actions || [])]),
+    risks: compactBrief([...(localBrief.risks || []), ...(serverBrief.risks || [])]),
+    questions: compactBrief([...(localBrief.questions || []), ...(serverBrief.questions || [])])
+  };
+}
+
+function summarizeForBrief(message) {
+  if (!message?.content) return "";
+  const content = String(message.content).replace(/\s+/g, " ").trim();
+  const firstSentence = content.split(/[。！？]/).find((part) => part.trim().length >= 8) || content;
+  return `${message.speakerName || message.speakerId}: ${truncate(firstSentence.trim(), 120)}`;
+}
+
+function pickBriefLines(text, keywords) {
+  return String(text || "")
+    .split(/[。！？；\n.?!;]/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 8)
+    .filter((line) => keywords.some((keyword) => line.toLowerCase().includes(keyword)))
+    .slice(-4);
+}
+
+function compactBrief(items) {
+  const seen = new Set();
+  const result = items
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = normalizeBriefKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 5);
+  return result.length ? result : ["Pending later stages."];
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function normalizeBriefKey(item) {
+  return item
+    .replace(/^[A-Za-z ]+:\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 async function withBusy(button, label, task) {
