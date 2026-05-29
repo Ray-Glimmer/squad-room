@@ -2,7 +2,6 @@
 
 Squad Room is a personal AI teammate room for competitions, projects, and serious brainstorming.
 
-Chinese name: 小队会议室.
 
 The first open-source version is intentionally small:
 
