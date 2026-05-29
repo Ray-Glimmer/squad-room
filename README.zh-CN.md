@@ -67,9 +67,11 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4.1-mini
 API_PORT=8787
 ALLOW_ORIGIN=*
+SQUAD_ROOM_MOCK=false
 ```
 
 任何兼容 OpenAI API 格式的模型服务，都可以通过修改 `OPENAI_BASE_URL` 和 `OPENAI_MODEL` 接入。
+测试流式界面时，可以设置 `SQUAD_ROOM_MOCK=true` 强制进入 mock 模式。
 
 ## 当前 MVP
 
@@ -84,6 +86,8 @@ ALLOW_ORIGIN=*
 - 按阶段继续推进讨论。
 - 向小队追问或补充约束。
 - 生成最终 brief。
+- 队友发言会以流式方式逐段显示。
+- 队友消息会以安全清洗后的 Markdown 渲染。
 - 查看自动提取的产出：方案、行动项、风险和评委问题。
 
 ## GitHub Pages

@@ -47,3 +47,9 @@ Early target users are students, independent makers, competition participants, a
 - Room: squad list, chat stream, output panel, controls.
 - Home API endpoint field: choose local or hosted API server without editing code.
 - Docs: open-source safety notes and project purpose.
+
+## Reading Experience
+
+- Teammate output streams into the chat as it is generated.
+- Message content is rendered as Markdown for headings, lists, tables, quotes, and code blocks.
+- Rendered Markdown is sanitized in the browser before insertion.

@@ -13,6 +13,7 @@ const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== "true";
 
 const squad = [
   {
@@ -86,14 +87,14 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
     if (req.method === "GET" && url.pathname === "/api/health") {
-      sendJson(res, 200, { ok: true, mode: OPENAI_API_KEY ? "provider" : "mock" });
+      sendJson(res, 200, { ok: true, mode: USE_PROVIDER ? "provider" : "mock" });
       return;
     }
 
     if (req.method === "GET" && url.pathname === "/api/config") {
       sendJson(res, 200, {
-        mode: OPENAI_API_KEY ? "provider" : "mock",
-        model: OPENAI_API_KEY ? OPENAI_MODEL : "mock-squad",
+        mode: USE_PROVIDER ? "provider" : "mock",
+        model: USE_PROVIDER ? OPENAI_MODEL : "mock-squad",
         hasProviderKey: Boolean(OPENAI_API_KEY),
         squad,
         stages
@@ -109,6 +110,13 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/meeting/start/stream") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body);
+      await streamStageResponse(res, { meeting, stageIndex: 0, history: [] });
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/meeting/continue") {
       const body = await readJson(req);
       const meeting = normalizeMeeting(body.meeting);
@@ -116,6 +124,15 @@ const server = createServer(async (req, res) => {
       const nextIndex = Math.min(Number(body.stageIndex || 0) + 1, stages.length - 1);
       const result = await runStage({ meeting, stageIndex: nextIndex, history });
       sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/continue/stream") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      const nextIndex = Math.min(Number(body.stageIndex || 0) + 1, stages.length - 1);
+      await streamStageResponse(res, { meeting, stageIndex: nextIndex, history });
       return;
     }
 
@@ -130,12 +147,30 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/meeting/message/stream") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      const userMessage = String(body.message || "").trim();
+      const stageIndex = Math.min(Number(body.stageIndex || 0), stages.length - 1);
+      await streamUserResponse(res, { meeting, stageIndex, history, userMessage });
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/meeting/summary") {
       const body = await readJson(req);
       const meeting = normalizeMeeting(body.meeting);
       const history = Array.isArray(body.history) ? body.history : [];
       const result = await summarize({ meeting, history });
       sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/meeting/summary/stream") {
+      const body = await readJson(req);
+      const meeting = normalizeMeeting(body.meeting);
+      const history = Array.isArray(body.history) ? body.history : [];
+      await streamSummaryResponse(res, { meeting, history });
       return;
     }
 
@@ -147,7 +182,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`squad-room API running on http://localhost:${PORT}`);
-  console.log(`mode: ${OPENAI_API_KEY ? "provider" : "mock"}`);
+  console.log(`mode: ${USE_PROVIDER ? "provider" : "mock"}`);
 });
 
 async function runStage({ meeting, stageIndex, history }) {
@@ -170,6 +205,35 @@ async function runStage({ meeting, stageIndex, history }) {
     outputs: extractOutputs([...history, ...messages]),
     usage
   };
+}
+
+async function streamStageResponse(res, { meeting, stageIndex, history }) {
+  startEventStream(res);
+  try {
+    const stage = stages[stageIndex] || stages[0];
+    const speakerIds = stageSpeakers[stage] || ["captain"];
+    const messages = [];
+    const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    sendEvent(res, "meta", { stage, stageIndex });
+
+    for (const speakerId of speakerIds) {
+      const member = squad.find((item) => item.id === speakerId);
+      const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages] });
+      messages.push(response.message);
+      addUsage(usage, response.usage);
+    }
+
+    sendEvent(res, "done", {
+      stage,
+      stageIndex,
+      outputs: extractOutputs([...history, ...messages]),
+      usage
+    });
+  } catch (error) {
+    sendEvent(res, "error", { message: error.message });
+  } finally {
+    res.end();
+  }
 }
 
 async function respondToUser({ meeting, stageIndex, history, userMessage }) {
@@ -209,6 +273,51 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   };
 }
 
+async function streamUserResponse(res, { meeting, stageIndex, history, userMessage }) {
+  startEventStream(res);
+  try {
+    const stage = stages[stageIndex] || stages[0];
+    const userEntry = {
+      id: randomUUID(),
+      speakerId: "user",
+      speakerName: "You",
+      kind: "user",
+      content: userMessage,
+      stage,
+      createdAt: new Date().toISOString()
+    };
+    const messages = [userEntry];
+    const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    sendEvent(res, "meta", { stage, stageIndex });
+    sendEvent(res, "message_done", { message: userEntry });
+
+    for (const speakerId of ["captain", "critic"]) {
+      const member = squad.find((item) => item.id === speakerId);
+      const response = await streamMember({
+        res,
+        meeting,
+        member,
+        stage,
+        history: [...history, ...messages],
+        userMessage
+      });
+      messages.push(response.message);
+      addUsage(usage, response.usage);
+    }
+
+    sendEvent(res, "done", {
+      stage,
+      stageIndex,
+      outputs: extractOutputs([...history, ...messages]),
+      usage
+    });
+  } catch (error) {
+    sendEvent(res, "error", { message: error.message });
+  } finally {
+    res.end();
+  }
+}
+
 async function summarize({ meeting, history }) {
   const member = squad.find((item) => item.id === "captain");
   const stage = "Summary";
@@ -240,12 +349,45 @@ async function summarize({ meeting, history }) {
   };
 }
 
+async function streamSummaryResponse(res, { meeting, history }) {
+  startEventStream(res);
+  try {
+    const member = squad.find((item) => item.id === "captain");
+    const stage = "Summary";
+    const stageIndex = stages.length - 1;
+    const prompt = buildSummaryPrompt(meeting);
+    sendEvent(res, "meta", { stage, stageIndex });
+    const response = await streamMember({
+      res,
+      meeting,
+      member,
+      stage,
+      history,
+      overrideUser: `${prompt}\n\nConversation:\n${historyToText(history)}`
+    });
+    sendEvent(res, "done", {
+      stage,
+      stageIndex,
+      outputs: extractOutputs([...history, response.message]),
+      usage: response.usage
+    });
+  } catch (error) {
+    sendEvent(res, "error", { message: error.message });
+  } finally {
+    res.end();
+  }
+}
+
 async function askMember({ meeting, member, stage, history, userMessage = "" }) {
-  if (!OPENAI_API_KEY) {
+  if (!USE_PROVIDER) {
     return mockMemberReply({ meeting, member, stage, userMessage });
   }
 
-  const user = [
+  return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, stage, history, userMessage }) });
+}
+
+function buildMemberUserPrompt({ meeting, stage, history, userMessage = "" }) {
+  return [
     `Meeting topic: ${meeting.topic}`,
     `Contest type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
@@ -258,12 +400,10 @@ async function askMember({ meeting, member, stage, history, userMessage = "" }) 
     userMessage ? `User just said: ${userMessage}` : "",
     "Reply as this teammate in 2-4 concise paragraphs. Be useful, specific, and collaborative."
   ].join("\n");
-
-  return callProvider({ system: buildSystem(member, stage), user });
 }
 
 async function callProvider({ system, user }) {
-  if (!OPENAI_API_KEY) {
+  if (!USE_PROVIDER) {
     return {
       content: "Mock response.",
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
@@ -296,6 +436,111 @@ async function callProvider({ system, user }) {
     content: data.choices?.[0]?.message?.content || "",
     usage: normalizeUsage(data.usage)
   };
+}
+
+async function streamMember({ res, meeting, member, stage, history, userMessage = "", overrideUser = "" }) {
+  const id = randomUUID();
+  let content = "";
+  let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const started = {
+    id,
+    speakerId: member.id,
+    speakerName: member.name,
+    kind: "agent",
+    content: "",
+    stage,
+    createdAt: new Date().toISOString()
+  };
+  sendEvent(res, "message_start", { message: started });
+
+  if (!USE_PROVIDER) {
+    const mock = mockMemberReply({ meeting, member, stage, userMessage });
+    for (const token of chunkText(mock.content)) {
+      content += token;
+      sendEvent(res, "token", { id, token });
+      await sleep(24);
+    }
+    usage = mock.usage;
+  } else {
+    const user = overrideUser || buildMemberUserPrompt({ meeting, stage, history, userMessage });
+    const response = await callProviderStream({
+      system: buildSystem(member, stage),
+      user,
+      onToken: (token) => {
+        content += token;
+        sendEvent(res, "token", { id, token });
+      }
+    });
+    usage = response.usage.totalTokens ? response.usage : estimateUsage(content);
+  }
+
+  const message = { ...started, content };
+  sendEvent(res, "message_done", { message, usage });
+  return { message, usage };
+}
+
+async function callProviderStream({ system, user, onToken }) {
+  const response = await fetch(`${OPENAI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.7,
+      stream: true,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Provider request failed: ${response.status} ${text.slice(0, 240)}`);
+  }
+
+  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for await (const chunk of response.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() || "";
+
+    for (const block of blocks) {
+      const lines = block.split(/\r?\n/).filter((line) => line.startsWith("data:"));
+      for (const line of lines) {
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        const parsed = JSON.parse(data);
+        addUsage(usage, normalizeUsage(parsed.usage));
+        const token = parsed.choices?.[0]?.delta?.content || "";
+        if (token) onToken(token);
+      }
+    }
+  }
+
+  return { usage };
+}
+
+function buildSummaryPrompt(meeting) {
+  return [
+    `Meeting topic: ${meeting.topic}`,
+    `Contest type: ${meeting.contestType}`,
+    `Goal: ${meeting.goal}`,
+    `Constraints: ${meeting.constraints}`,
+    "",
+    "Create a final squad brief with these exact sections:",
+    "Proposal:",
+    "Execution Plan:",
+    "Risks:",
+    "Judge Questions:",
+    "Next 48 Hours:"
+  ].join("\n");
 }
 
 function mockMemberReply({ meeting, member, stage, userMessage }) {
@@ -457,4 +702,31 @@ function setCors(res) {
 function sendJson(res, status, payload) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload, null, 2));
+}
+
+function startEventStream(res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+}
+
+function sendEvent(res, event, payload) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function chunkText(text) {
+  const chunks = [];
+  const source = String(text);
+  for (let index = 0; index < source.length; index += 18) {
+    chunks.push(source.slice(index, index + 18));
+  }
+  return chunks;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

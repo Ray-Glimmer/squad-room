@@ -71,15 +71,13 @@ newMeetingButton.addEventListener("click", () => {
 
 continueButton.addEventListener("click", async () => {
   await withBusy(continueButton, "Thinking", async () => {
-    const result = await postJson("/api/meeting/continue", { meeting, history, stageIndex });
-    applyResult(result);
+    await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
   });
 });
 
 summaryButton.addEventListener("click", async () => {
   await withBusy(summaryButton, "Summarizing", async () => {
-    const result = await postJson("/api/meeting/summary", { meeting, history });
-    applyResult(result);
+    await postStream("/api/meeting/summary/stream", { meeting, history });
   });
 });
 
@@ -89,8 +87,7 @@ messageForm.addEventListener("submit", async (event) => {
   if (!message) return;
   messageInput.value = "";
   await withBusy(messageForm.querySelector("button"), "Sending", async () => {
-    const result = await postJson("/api/meeting/message", { meeting, history, stageIndex, message });
-    applyResult(result);
+    await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
   });
 });
 
@@ -105,8 +102,7 @@ async function startMeeting() {
   renderOutputs({});
 
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
-    const result = await postJson("/api/meeting/start", meeting);
-    applyResult(result);
+    await postStream("/api/meeting/start/stream", meeting);
   });
 }
 
@@ -116,10 +112,14 @@ function applyResult(result) {
   if (Array.isArray(result.messages)) {
     history = [...history, ...result.messages];
   }
-  totalTokens += result.usage?.totalTokens || 0;
-  usageLine.textContent = `${totalTokens.toLocaleString()} tokens`;
+  applyUsage(result.usage);
   renderMessages();
   renderOutputs(result.outputs || {});
+}
+
+function applyUsage(usage = {}) {
+  totalTokens += usage.totalTokens || 0;
+  usageLine.textContent = `${totalTokens.toLocaleString()} tokens`;
 }
 
 function renderSquad() {
@@ -139,21 +139,48 @@ function renderSquad() {
 }
 
 function renderMessages() {
-  messageList.innerHTML = history
-    .map((message) => {
-      const kind = message.kind || "agent";
-      return `
-        <article class="message ${kind}">
-          <div class="message-head">
-            <span>${escapeHtml(message.speakerName || message.speakerId)}</span>
-            <span class="message-stage">${escapeHtml(message.stage || "")}</span>
-          </div>
-          <p>${escapeHtml(message.content || "")}</p>
-        </article>
-      `;
-    })
-    .join("");
+  messageList.innerHTML = history.map((message) => renderMessageHtml(message)).join("");
   messageList.scrollTop = messageList.scrollHeight;
+}
+
+function renderMessageHtml(message) {
+  const kind = message.kind || "agent";
+  return `
+    <article class="message ${kind}" data-message-id="${escapeHtml(message.id)}">
+      <div class="message-head">
+        <span>${escapeHtml(message.speakerName || message.speakerId)}</span>
+        <span class="message-stage">${escapeHtml(message.stage || "")}</span>
+      </div>
+      <div class="markdown-body">${renderMarkdown(message.content || "")}</div>
+    </article>
+  `;
+}
+
+function upsertMessage(message) {
+  const existing = history.find((item) => item.id === message.id);
+  if (existing) {
+    Object.assign(existing, message);
+  } else {
+    history.push(message);
+  }
+  renderMessages();
+}
+
+function appendToken(id, token) {
+  const message = history.find((item) => item.id === id);
+  if (!message) return;
+  message.content += token;
+  const node = messageList.querySelector(`[data-message-id="${cssEscape(id)}"] .markdown-body`);
+  if (node) {
+    node.innerHTML = renderMarkdown(message.content);
+    messageList.scrollTop = messageList.scrollHeight;
+  } else {
+    renderMessages();
+  }
+}
+
+function finalizeMessage(message) {
+  upsertMessage(message);
 }
 
 function renderOutputs(data) {
@@ -179,9 +206,9 @@ function renderOutputs(data) {
 async function refreshConfig() {
   try {
     const config = await getJson("/api/config");
-    statusLine.textContent = `${config.mode} mode · ${config.model}`;
+    statusLine.textContent = `${config.mode} mode - ${config.model}`;
   } catch {
-    statusLine.textContent = `API offline · ${apiBase}`;
+    statusLine.textContent = `API offline - ${apiBase}`;
   }
 }
 
@@ -202,6 +229,79 @@ async function postJson(path, payload) {
     throw new Error(text);
   }
   return response.json();
+}
+
+async function postStream(path, payload) {
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() || "";
+    for (const block of blocks) {
+      handleStreamEvent(parseEventBlock(block));
+    }
+  }
+
+  if (buffer.trim()) {
+    handleStreamEvent(parseEventBlock(buffer));
+  }
+}
+
+function parseEventBlock(block) {
+  const event = { type: "message", data: null };
+  const dataLines = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("event:")) event.type = line.slice(6).trim();
+    if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+  }
+  event.data = dataLines.length ? JSON.parse(dataLines.join("\n")) : null;
+  return event;
+}
+
+function handleStreamEvent(event) {
+  const data = event.data || {};
+  if (event.type === "meta") {
+    stageIndex = data.stageIndex ?? stageIndex;
+    if (data.stage) stageBadge.textContent = data.stage;
+    return;
+  }
+  if (event.type === "message_start") {
+    upsertMessage(data.message);
+    return;
+  }
+  if (event.type === "token") {
+    appendToken(data.id, data.token || "");
+    return;
+  }
+  if (event.type === "message_done") {
+    finalizeMessage(data.message);
+    return;
+  }
+  if (event.type === "done") {
+    stageIndex = data.stageIndex ?? stageIndex;
+    if (data.stage) stageBadge.textContent = data.stage;
+    applyUsage(data.usage);
+    renderOutputs(data.outputs || {});
+    return;
+  }
+  if (event.type === "error") {
+    throw new Error(data.message || "Stream failed.");
+  }
 }
 
 async function withBusy(button, label, task) {
@@ -225,6 +325,24 @@ async function withBusy(button, label, task) {
     button.disabled = false;
     button.textContent = original;
   }
+}
+
+function renderMarkdown(markdown) {
+  const source = String(markdown || "");
+  if (!source.trim()) return '<span class="stream-cursor"></span>';
+  if (window.marked && window.DOMPurify) {
+    const html = window.marked.parse(source, { breaks: true, gfm: true });
+    return window.DOMPurify.sanitize(html, {
+      ADD_ATTR: ["target", "rel"],
+      FORBID_TAGS: ["style", "script", "iframe", "object", "embed"]
+    });
+  }
+  return escapeHtml(source).replace(/\n/g, "<br>");
+}
+
+function cssEscape(value) {
+  if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
+  return String(value).replace(/["\\]/g, "\\$&");
 }
 
 function escapeHtml(value) {

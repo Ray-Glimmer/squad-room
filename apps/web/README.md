@@ -12,3 +12,4 @@ http://localhost:8787
 
 The frontend does not store or send provider API keys.
 
+Messages stream from the API server and render as sanitized Markdown with a plain-text fallback if the CDN libraries are unavailable.

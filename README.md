@@ -65,9 +65,11 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4.1-mini
 API_PORT=8787
 ALLOW_ORIGIN=*
+SQUAD_ROOM_MOCK=false
 ```
 
 Any OpenAI-compatible provider can be used by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`.
+Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 
 ## Current MVP
 
@@ -82,6 +84,8 @@ Any OpenAI-compatible provider can be used by changing `OPENAI_BASE_URL` and `OP
 - Continue the meeting through staged discussion.
 - Ask the squad a follow-up.
 - Generate a final brief.
+- Stream teammate responses as they are generated.
+- Render teammate messages as sanitized Markdown.
 - View extracted outputs: proposal, actions, risks, and judge questions.
 
 ## GitHub Pages
@@ -107,4 +111,3 @@ squad-room/
 ## Status
 
 This is an early MVP scaffold for personal use and developer experimentation.
-

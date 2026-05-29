@@ -12,6 +12,7 @@ apps/api
   Node.js HTTP server
   Orchestrates squad turns
   Calls mock provider or OpenAI-compatible provider
+  Streams teammate tokens over server-sent events
   Tracks rough usage per response
 ```
 
@@ -22,14 +23,29 @@ apps/api
 - Build squad prompts.
 - Control meeting stages and speaking order.
 - Return structured messages and extracted outputs.
+- Return streaming events for live teammate output.
 - Avoid logging secrets.
 
 ## Frontend Responsibilities
 
 - Collect meeting setup details.
 - Render squad members, messages, and outputs.
+- Render streamed messages as sanitized Markdown.
 - Let the user continue, interrupt, and summarize.
 - Store only non-secret meeting state.
+
+## Streaming Events
+
+The frontend uses `POST /api/meeting/*/stream` endpoints. Responses are `text/event-stream`.
+
+```text
+meta           Current stage and stage index
+message_start  Placeholder message for one teammate
+token          Incremental text chunk for that message
+message_done   Final message object
+done           Outputs and usage for the whole request
+error          Stream-level error message
+```
 
 ## Data Model
 
@@ -52,4 +68,3 @@ type MeetingMessage = {
   createdAt: string;
 };
 ```
-
