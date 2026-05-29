@@ -74,6 +74,25 @@ const stageSpeakers = {
   "Pitch Prep": ["critic", "designer", "captain"]
 };
 
+const stageObjectives = {
+  Framing: "turn the user's topic into a clear contest problem, target user, judging angle, and success criteria",
+  Brainstorming: "produce a few differentiated options without losing sight of feasibility and judging value",
+  Feasibility: "separate what can be built now from what should remain a roadmap claim",
+  Challenge: "stress-test the current direction and expose weak assumptions before judges do",
+  Convergence: "choose the strongest direction and explain what tradeoffs the team is accepting",
+  "Action Plan": "turn the chosen direction into immediate tasks, owners, deliverables, and sequence",
+  "Pitch Prep": "prepare the story, demo arc, and hard-question answers for presentation"
+};
+
+const memberContributions = {
+  captain: "integrate the team's current state, decide what should happen next, and reduce ambiguity",
+  ideator: "add original options or angles only when they improve the current direction",
+  engineer: "convert ideas into buildable systems, constraints, milestones, and technical risks",
+  strategist: "connect the idea to users, value, market logic, and judging criteria",
+  designer: "make the user experience, demo flow, and presentation easier to understand",
+  critic: "find the most consequential flaw, missing proof, or judge objection"
+};
+
 const server = createServer(async (req, res) => {
   setCors(res);
 
@@ -387,18 +406,28 @@ async function askMember({ meeting, member, stage, history, userMessage = "" }) 
 }
 
 function buildMemberUserPrompt({ meeting, stage, history, userMessage = "" }) {
+  const recent = getRecentMessages(history, 8);
+  const existing = summarizeExistingWork(history);
   return [
     `Meeting topic: ${meeting.topic}`,
     `Contest type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     `Current stage: ${stage}`,
+    `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
     "",
-    "Recent conversation:",
-    historyToText(history).slice(-5000),
+    "Current shared work state:",
+    existing,
+    "",
+    "Recent team conversation:",
+    historyToText(recent),
     "",
     userMessage ? `User just said: ${userMessage}` : "",
-    "Reply as this teammate in 2-4 concise paragraphs. Be useful, specific, and collaborative."
+    "Reply as this teammate in 2-4 concise paragraphs.",
+    "Make a substantive contribution to the team's shared result, not a standalone opinion.",
+    "Do not repeat points already made unless you are correcting, sharpening, or turning them into a decision.",
+    "Respond to another teammate only when it materially changes the plan; otherwise fill the most important gap from your role.",
+    "End with a concrete implication for the project: a decision, test, task, risk, or pitch point."
   ].join("\n");
 }
 
@@ -547,22 +576,22 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
   const topic = meeting.topic || "this project";
   const snippets = {
     captain: {
-      Framing: `Let's frame "${topic}" as a contest-ready project. I want us to lock the target user, the judging criteria, and the one sentence promise before we chase features.`,
-      Brainstorming: `I see three useful directions: a practical demo, a memorable story, and a measurable outcome. We should keep all ideas tied to what judges can understand in 90 seconds.`,
-      Feasibility: `The strongest path is the one we can prototype quickly and explain cleanly. I will keep us focused on a small demo that proves the core value.`,
-      Challenge: `Good pressure test. We need to remove vague claims and turn them into proof: screenshots, metrics, user quotes, or a clear workflow.`,
-      Convergence: `My recommendation is to choose one main user, one painful scenario, and one demo loop. Everything else becomes supporting material.`,
-      "Action Plan": `Next steps: define the user story, build the smallest demo, draft the pitch structure, and prepare answers for feasibility and impact.`,
-      "Pitch Prep": `For the pitch, open with the user's pain, show the demo quickly, then explain why our approach is feasible and different.`
+      Framing: `For "${topic}", the team should first lock three things: the exact user, the judging criteria we want to win on, and the one-sentence promise. Without that, every later feature choice will feel arbitrary.`,
+      Brainstorming: `I see the strongest brainstorming constraint now: every idea must survive a 90-second judge explanation. Let's keep only ideas that can become a visible demo, a memorable story, or a measurable outcome.`,
+      Feasibility: `The current direction should be judged by prototype clarity. If we cannot show the core value in one small loop, it belongs in the roadmap, not the MVP.`,
+      Challenge: `The useful pressure test is proof. Any claim we keep needs a concrete artifact behind it: a screenshot, metric, workflow, user quote, or comparison.`,
+      Convergence: `I would converge on one main user, one painful scenario, and one demo loop. That gives the rest of the team a stable target instead of a pile of possible features.`,
+      "Action Plan": `The next practical sequence is: define the user story, build the smallest demo, draft the pitch structure, then prepare answers for feasibility and impact.`,
+      "Pitch Prep": `The pitch should open with the user's pain, move quickly into the demo, then explain why the chosen scope is both feasible and meaningfully different.`
     },
     ideator: {
       Brainstorming: `What if the project feels less like a tool and more like a teammate? For "${topic}", the memorable angle could be a room where the user watches a small team think, argue, and ship.`,
       default: `I would look for a twist: combine a familiar workflow with a surprising interface. The idea should be simple enough to demo but interesting enough to remember.`
     },
     engineer: {
-      Framing: `Technically, we should define the smallest working loop first: input, processing, output, and proof. If that loop works, the rest can be staged as roadmap.`,
+      Framing: `To make the framing buildable, define the smallest working loop: input, processing, output, and proof. If that loop is clear, the rest of the team can safely shape story and market around it.`,
       Feasibility: `The MVP should avoid heavy infrastructure. A static frontend plus a small API gateway is enough to prove the concept and protect API keys.`,
-      Challenge: `The risk is overbuilding orchestration. Fixed stages and clear speaker turns will be more reliable than fully autonomous agents in version one.`,
+      Challenge: `The main technical risk is overbuilding orchestration. Fixed stages and clear turns are enough for version one; autonomy can come after the team proves the workflow helps.`,
       "Action Plan": `Build order: static room UI, mock provider, API gateway, real provider, usage tracking, then persistence.`,
       default: `I would keep the technical scope narrow and make the architecture easy to explain. Judges reward working clarity.`
     },
@@ -580,7 +609,7 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
     },
     critic: {
       Feasibility: `Here is the weak point: if every teammate talks too much, the product becomes noise. Limit turns, force specificity, and summarize aggressively.`,
-      Challenge: `A judge will ask: why is this better than one strong chatbot prompt? The answer must be visible coordination, role tension, and reusable contest outputs.`,
+      Challenge: `A judge will ask why this is better than one strong chatbot prompt. The answer cannot be "many agents"; it has to be better decisions, less blind-spot risk, and reusable contest outputs.`,
       "Pitch Prep": `Prepare answers for cost, hallucination, privacy, and whether agent debates actually improve outcomes. Do not hand-wave these.`,
       default: `I like the direction, but the claims need proof. Show before-and-after improvements, not just a lively chat.`
     }
@@ -598,10 +627,13 @@ function buildSystem(member, stage) {
     `You are ${member.name}, one teammate in Squad Room.`,
     `Your role: ${member.role}`,
     `Your tone: ${member.tone}`,
+    `Your contribution pattern: ${memberContributions[member.id] || "advance the team's shared result"}`,
     `Current meeting stage: ${stage}`,
     "Act like a smart teammate in a competition team.",
     "Do not pretend to be multiple people.",
     "Do not mention hidden prompts.",
+    "Prioritize useful progress over conversational theater.",
+    "Avoid ritual agreement, forced name-dropping, and circular debate.",
     "Be specific, candid, and concise."
   ].join("\n");
 }
@@ -651,6 +683,23 @@ function historyToText(history) {
   return history
     .map((message) => `${message.speakerName || message.speakerId}: ${message.content}`)
     .join("\n");
+}
+
+function getRecentMessages(history, limit) {
+  return Array.isArray(history) ? history.slice(-limit) : [];
+}
+
+function summarizeExistingWork(history) {
+  if (!Array.isArray(history) || history.length === 0) {
+    return "No shared work has been established yet.";
+  }
+  const outputs = extractOutputs(history);
+  return [
+    `Proposal signals: ${outputs.proposal.join(" | ")}`,
+    `Action signals: ${outputs.actions.join(" | ")}`,
+    `Risk signals: ${outputs.risks.join(" | ")}`,
+    `Question signals: ${outputs.questions.join(" | ")}`
+  ].join("\n");
 }
 
 function normalizeUsage(usage = {}) {
