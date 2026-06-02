@@ -108,6 +108,82 @@ label {
   font-weight: 700;
 }
 
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.toggle-control {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 160ms ease;
+}
+
+.toggle-control::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 160ms ease;
+}
+
+.toggle-row input:checked + .toggle-control {
+  background: var(--green);
+}
+
+.toggle-row input:checked + .toggle-control::after {
+  transform: translateX(16px);
+}
+
+.toggle-row input:focus-visible + .toggle-control {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.toggle-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.toggle-row.compact {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.toggle-row.compact .toggle-control {
+  width: 34px;
+  height: 20px;
+}
+
+.toggle-row.compact .toggle-control::after {
+  width: 14px;
+  height: 14px;
+}
+
+.toggle-row.compact input:checked + .toggle-control::after {
+  transform: translateX(14px);
+}
+
 input,
 select,
 textarea {

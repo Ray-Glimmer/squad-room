@@ -61,4 +61,4 @@ Early target users are students, independent makers, competition participants, a
 - Teammates receive role-specific working methods from editable Markdown files.
 - The room displays visible, scrollable tool activity with compact summaries and expandable results.
 - Low-risk local tools run automatically at bounded stages to read explicit context, create a Markdown artifact, and create tasks from the brief.
-- Strategist automatically proposes a web-search request during Framing, but a user click is still required before the API server sends the query to a search provider and adds results to shared research context.
+- Agents propose stage-relevant web-search requests. Per-query approval is required by default; users can enable meeting-level automatic web research to send visible queries without asking each time. Results are added to shared research context.

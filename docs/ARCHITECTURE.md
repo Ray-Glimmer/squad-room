@@ -48,7 +48,7 @@ Skills live under `skills/<teammate>/`. Each skill is a Markdown working method 
 read_project_file  Read only pasted project materials
 write_artifact     Convert current brief to Markdown
 update_task        Convert brief actions to local todo items
-web_search         Ask for approval, then fetch search results into shared research context
+web_search         Fetch search results into shared context after approval, or automatically when the meeting toggle is enabled
 ```
 
 The MVP does not read arbitrary local paths, run code, or perform background web search.

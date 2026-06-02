@@ -54,6 +54,7 @@ const roomTitle = document.querySelector("#roomTitle");
 const stageBadge = document.querySelector("#stageBadge");
 const statusLine = document.querySelector("#statusLine");
 const usageLine = document.querySelector("#usageLine");
+const autoResearchToggle = document.querySelector("#autoResearchToggle");
 
 meetingForm.elements.apiBase.value = apiBase;
 renderSquad();
@@ -75,7 +76,8 @@ meetingForm.addEventListener("submit", async (event) => {
     goal: form.get("goal"),
     constraints: form.get("constraints"),
     projectMaterials: form.get("projectMaterials"),
-    researchContext: ""
+    researchContext: "",
+    autoWebResearch: form.get("autoWebResearch") === "on"
   };
   await startMeeting();
 });
@@ -100,6 +102,18 @@ newMeetingButton.addEventListener("click", () => {
   renderMaterialFiles();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
+});
+
+autoResearchToggle.addEventListener("change", () => {
+  if (!meeting) return;
+  meeting.autoWebResearch = autoResearchToggle.checked;
+  meetingForm.elements.autoWebResearch.checked = autoResearchToggle.checked;
+  addSystemMessage(
+    autoResearchToggle.checked
+      ? "Automatic web research is enabled. Agents may send visible search queries without per-search approval."
+      : "Automatic web research is disabled. New search queries will wait for approval.",
+    "Research"
+  );
 });
 
 materialFileButton.addEventListener("click", () => materialFileInput.click());
@@ -156,6 +170,7 @@ async function startMeeting() {
   totalTokens = 0;
   currentBrief = {};
   toolActivities = [];
+  autoResearchToggle.checked = Boolean(meeting.autoWebResearch);
   renderMessages();
   renderOutputs({});
   renderActivities();
@@ -508,6 +523,7 @@ function addToolActivities(activities = []) {
       : -1;
     if (existingIndex >= 0) toolActivities.splice(existingIndex, 1);
     toolActivities.unshift(activity);
+    appendResearchContext(activity);
   }
   toolActivities = toolActivities.slice(0, 20);
   renderActivities();
@@ -634,7 +650,13 @@ function renderMaterialFiles() {
 
 function renderActivity(activity) {
   if (!activity.ok) {
-    return `<article class="activity-item error"><strong>Tool error</strong><p>${escapeHtml(activity.error || "Unknown error")}</p></article>`;
+    return `
+      <article class="activity-item error">
+        <strong>${escapeHtml(activity.toolName || "Tool error")}</strong>
+        ${activity.query ? `<p>${escapeHtml(activity.query)}</p>` : ""}
+        <p>${escapeHtml(activity.error || "Unknown error")}</p>
+      </article>
+    `;
   }
   const heading = `${activity.agentId} - ${activity.toolName}`;
   if (activity.status === "approval_required") {
@@ -710,7 +732,6 @@ activityList.addEventListener("click", async (event) => {
       }
     });
     addToolActivities([response]);
-    appendResearchContext(response);
     addSystemMessage("Approved web research is complete. The sources were added to the squad's shared context for the next turn.", "Research");
   } catch (error) {
     button.disabled = false;

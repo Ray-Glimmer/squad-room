@@ -114,9 +114,9 @@ SQUAD_ROOM_MOCK=false
 | Read Project Context | Captain 在 Framing 阶段读取用户显式提供的资料。 | 不需要 |
 | Create Brief Artifact | Captain 在 Convergence 和 Summary 阶段刷新 Markdown 简报产物。 | 不需要 |
 | Create Tasks | Engineer 在 Action Plan 和 Summary 阶段整理行动项。 | 不需要 |
-| Web Research | Strategist 在 Framing 阶段提出可见的研究请求。批准后，API 服务会执行检索，并把结果加入小队共享研究上下文。 | 需要用户点击 |
+| Web Research | Agent 会按阶段提出相关检索请求。默认情况下每条关键词都等待批准；开启 Automatic web research 后，agent 可以直接发送关键词。结果会加入共享上下文。 | 可选用户点击 |
 
-低风险工具会在限定的会议阶段自动执行，并显示在 Tool Activity 中。外部网页搜索仍会等待用户明确批准；批准后，只有搜索关键词会发送给搜索服务，项目资料不会被发送。第一版工具不会读取你电脑上的任意文件，也不会运行代码。
+低风险工具会在限定的会议阶段自动执行，并显示在 Tool Activity 中。自动检索默认关闭，可以在创建会议时或会议室顶部开启。开启后，agent 可以直接发送可见的检索关键词，不再逐条等待批准。只有搜索关键词会发送给搜索服务，项目资料不会被发送。第一版工具不会读取你电脑上的任意文件，也不会运行代码。
 
 ## GitHub Pages
 

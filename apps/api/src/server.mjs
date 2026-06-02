@@ -772,7 +772,8 @@ function normalizeMeeting(input = {}) {
     goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
     projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000),
-    researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000)
+    researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000),
+    autoWebResearch: input.autoWebResearch === true
   };
 }
 
@@ -885,6 +886,12 @@ function loadSkill(id, name, owner, relativePath) {
 async function runAutomaticTools({ meeting, stage, brief }) {
   const calls = [];
   const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
+  const researchQueries = {
+    Framing: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria`,
+    Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
+    Challenge: `${meeting.topic} risks failure cases criticism alternatives`,
+    "Pitch Prep": `${meeting.topic} evidence benchmarks case studies pitch questions`
+  };
 
   if (stage === "Framing") {
     if (hasProjectMaterials) {
@@ -894,10 +901,16 @@ async function runAutomaticTools({ meeting, stage, brief }) {
         payload: { projectMaterials: meeting.projectMaterials }
       });
     }
+  }
+
+  if (researchQueries[stage]) {
     calls.push({
       toolId: "web_search",
-      agentId: "strategist",
-      payload: { query: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria` }
+      agentId: stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist",
+      payload: {
+        query: researchQueries[stage],
+        approved: meeting.autoWebResearch
+      }
     });
   }
 
@@ -967,13 +980,23 @@ async function executeTool(body = {}) {
     const query = truncate(String(payload.query || "").trim(), 240);
     if (!query) return { ok: false, error: "Search query is required." };
     if (payload.approved === true) {
-      const result = await searchWeb(query);
-      return {
-        ...base,
-        status: "completed",
-        query,
-        result
-      };
+      try {
+        const result = await searchWeb(query);
+        return {
+          ...base,
+          status: "completed",
+          query,
+          result
+        };
+      } catch (error) {
+        return {
+          ...base,
+          ok: false,
+          status: "error",
+          query,
+          error: error.message || "Web research failed."
+        };
+      }
     }
     return {
       ...base,
