@@ -296,7 +296,7 @@ textarea:focus {
 
 .output-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   overflow: hidden;
 }
 
@@ -695,11 +695,80 @@ textarea:focus {
   font-size: 0.9em;
 }
 
+.interruption-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.interruption-bar .ghost-button {
+  min-height: 30px;
+  padding: 0 9px;
+  border-color: #f59e0b;
+  color: #92400e;
+  font-size: 11px;
+}
+
 .activity-panel {
   min-height: 0;
   margin-top: 4px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
+}
+
+.background-panel {
+  min-height: 0;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.background-task-list {
+  display: grid;
+  gap: 6px;
+  max-height: 144px;
+  margin-top: 8px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.background-task {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: 11px;
+}
+
+.background-task span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.background-task b {
+  color: var(--cyan);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.background-task.completed b {
+  color: var(--green);
+}
+
+.background-task.error b {
+  color: #dc2626;
 }
 
 .activity-header {

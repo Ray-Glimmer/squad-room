@@ -18,8 +18,10 @@ Early target users are students, independent makers, competition participants, a
 2. The squad opens with a structured first round.
 3. The user continues the meeting, interrupts, or asks for a specific teammate.
 4. The user can pause an active request and resume from the last completed stage.
-5. The squad discusses, challenges, and refines the idea.
-6. The room produces a brief: proposal, actions, risks, and judge questions.
+5. User messages join an interruption queue while a visible turn is active; the user can interrupt immediately when needed.
+6. Silent background tasks can continue alongside the visible discussion and publish findings into shared context.
+7. The squad discusses, challenges, and refines the idea.
+8. The room produces a brief: proposal, actions, risks, and judge questions.
 
 ## Default Squad
 
@@ -61,5 +63,7 @@ Early target users are students, independent makers, competition participants, a
 - Imported files are parsed locally in the browser and added to the bounded meeting context.
 - Teammates receive role-specific working methods from editable Markdown files.
 - The room displays visible, scrollable tool activity with compact summaries and expandable results.
+- The room displays background-task status separately from the visible discussion.
 - Low-risk local tools run automatically at bounded stages to read explicit context, create a Markdown artifact, and create tasks from the brief.
 - Agents propose stage-relevant web-search requests. Per-query approval is required by default; users can enable meeting-level automatic web research to send visible queries without asking each time. Results are added to shared research context.
+- Captain handles user interruptions with one routed specialist selected from the message topic.

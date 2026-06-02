@@ -109,8 +109,12 @@
 
         <section class="chat-panel">
           <div id="messageList" class="message-list"></div>
+          <div id="interruptionBar" class="interruption-bar hidden">
+            <span id="interruptionCount">0 pending messages</span>
+            <button id="interruptNowButton" type="button" class="ghost-button">Interrupt now</button>
+          </div>
           <form id="messageForm" class="composer">
-            <input id="messageInput" placeholder="Interrupt, ask a teammate, or add constraints..." />
+            <input id="messageInput" placeholder="Join the discussion, ask a teammate, or add constraints..." />
             <button type="submit" class="primary-button">Send</button>
           </form>
         </section>
@@ -128,6 +132,13 @@
             </div>
             <div id="activityList" class="activity-list"></div>
           </section>
+          <section class="background-panel">
+            <div class="activity-header">
+              <h3>Background Tasks</h3>
+              <span id="backgroundTaskCount">0</span>
+            </div>
+            <div id="backgroundTaskList" class="background-task-list"></div>
+          </section>
           <div class="output-actions">
             <button id="runMeetingButton" class="primary-button">Run Meeting</button>
             <button id="continueButton" class="ghost-button">Next Stage</button>
@@ -139,6 +150,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260602-9" type="module"></script>
+    <script src="./app.js?v=20260602-10" type="module"></script>
   </body>
 </html>

@@ -29,10 +29,14 @@ let resumeAutomaticRun = false;
 let activeStreamController = null;
 let pausedStreamRequest = null;
 let streamEpoch = 0;
+let abortReason = "";
+let isDrainingUserQueue = false;
+let pendingUserMessages = [];
 let currentBrief = {};
 let availableSkills = [];
 let availableTools = [];
 let toolActivities = [];
+let backgroundTasks = [];
 let materialFiles = [];
 
 const setupView = document.querySelector("#setupView");
@@ -46,12 +50,17 @@ const summaryButton = document.querySelector("#summaryButton");
 const pauseButton = document.querySelector("#pauseButton");
 const messageForm = document.querySelector("#messageForm");
 const messageInput = document.querySelector("#messageInput");
+const interruptionBar = document.querySelector("#interruptionBar");
+const interruptionCount = document.querySelector("#interruptionCount");
+const interruptNowButton = document.querySelector("#interruptNowButton");
 const messageList = document.querySelector("#messageList");
 const squadList = document.querySelector("#squadList");
 const skillList = document.querySelector("#skillList");
 const outputs = document.querySelector("#outputs");
 const activityCount = document.querySelector("#activityCount");
 const activityList = document.querySelector("#activityList");
+const backgroundTaskCount = document.querySelector("#backgroundTaskCount");
+const backgroundTaskList = document.querySelector("#backgroundTaskList");
 const toolRegistry = document.querySelector("#toolRegistry");
 const materialFileInput = document.querySelector("#materialFileInput");
 const materialFileButton = document.querySelector("#materialFileButton");
@@ -68,6 +77,8 @@ renderSkills();
 renderTools();
 renderOutputs({});
 renderActivities();
+renderBackgroundTasks();
+renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
 
@@ -106,14 +117,24 @@ newMeetingButton.addEventListener("click", () => {
   totalTokens = 0;
   currentBrief = {};
   toolActivities = [];
+  backgroundTasks = [];
+  pendingUserMessages = [];
   materialFiles = [];
   isPaused = false;
   resumeAutomaticRun = false;
   pausedStreamRequest = null;
   renderPauseState();
   renderMaterialFiles();
+  renderBackgroundTasks();
+  renderInterruptionQueue();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
+});
+
+interruptNowButton.addEventListener("click", () => {
+  if (!pendingUserMessages.length || !activeStreamController) return;
+  abortReason = "user_interruption";
+  activeStreamController.abort();
 });
 
 pauseButton.addEventListener("click", async () => {
@@ -134,6 +155,7 @@ pauseButton.addEventListener("click", async () => {
     pausedStreamRequest = null;
     try {
       await postStream(request.path, request.payload);
+      await drainUserQueue();
     } catch (error) {
       if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
     }
@@ -163,10 +185,11 @@ materialFileInput.addEventListener("change", async () => {
 });
 
 continueButton.addEventListener("click", async () => {
-  if (isPaused) return;
+  if (isPaused || activeStreamController) return;
   await withBusy(continueButton, "Thinking", async () => {
     await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
   });
+  await drainUserQueue();
 });
 
 runMeetingButton.addEventListener("click", async () => {
@@ -174,10 +197,11 @@ runMeetingButton.addEventListener("click", async () => {
 });
 
 summaryButton.addEventListener("click", async () => {
-  if (isPaused) return;
+  if (isPaused || activeStreamController) return;
   await withBusy(summaryButton, "Summarizing", async () => {
     await postStream("/api/meeting/summary/stream", { meeting, history });
   });
+  await drainUserQueue();
 });
 
 messageForm.addEventListener("submit", async (event) => {
@@ -185,9 +209,9 @@ messageForm.addEventListener("submit", async (event) => {
   const message = messageInput.value.trim();
   if (!message || isPaused) return;
   messageInput.value = "";
-  await withBusy(messageForm.querySelector("button"), "Sending", async () => {
-    await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
-  });
+  pendingUserMessages.push({ id: crypto.randomUUID(), message });
+  renderInterruptionQueue();
+  await drainUserQueue();
 });
 
 async function startMeeting() {
@@ -200,6 +224,8 @@ async function startMeeting() {
   totalTokens = 0;
   currentBrief = {};
   toolActivities = [];
+  backgroundTasks = [];
+  pendingUserMessages = [];
   isPaused = false;
   resumeAutomaticRun = false;
   pausedStreamRequest = null;
@@ -208,18 +234,22 @@ async function startMeeting() {
   renderMessages();
   renderOutputs({});
   renderActivities();
+  renderBackgroundTasks();
+  renderInterruptionQueue();
 
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
     await postStream("/api/meeting/start/stream", meeting);
   });
+  await drainUserQueue();
 }
 
 async function runMeeting() {
-  if (isRunningMeeting || isPaused) return;
+  if (isRunningMeeting || isPaused || activeStreamController) return;
   isRunningMeeting = true;
   await withBusy(runMeetingButton, "Running", async () => {
     while (!isPaused && stageIndex < stages.length - 1) {
       await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
+      await drainUserQueue();
     }
     if (isPaused) return;
     await postStream("/api/meeting/summary/stream", { meeting, history });
@@ -228,10 +258,35 @@ async function runMeeting() {
   isRunningMeeting = false;
 }
 
+async function drainUserQueue() {
+  if (isDrainingUserQueue || isPaused || activeStreamController) return;
+  isDrainingUserQueue = true;
+  try {
+    while (!isPaused && !activeStreamController && pendingUserMessages.length) {
+      const next = pendingUserMessages.shift();
+      renderInterruptionQueue();
+      await withBusy(messageForm.querySelector("button"), "Sending", async () => {
+        await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message: next.message });
+      });
+    }
+  } finally {
+    isDrainingUserQueue = false;
+    renderInterruptionQueue();
+  }
+}
+
+function renderInterruptionQueue() {
+  const count = pendingUserMessages.length;
+  interruptionBar.classList.toggle("hidden", count === 0);
+  interruptionCount.textContent = `${count} pending ${count === 1 ? "message" : "messages"}`;
+  interruptNowButton.disabled = !activeStreamController;
+}
+
 function pauseMeeting({ announce = true } = {}) {
   if (isPaused && !activeStreamController) return;
   resumeAutomaticRun = isRunningMeeting;
   isPaused = true;
+  abortReason = "pause";
   activeStreamController?.abort();
   renderPauseState();
   if (announce) addSystemMessage("Meeting paused. The current request was stopped; resume to continue from the last completed stage.", "Control");
@@ -376,6 +431,7 @@ async function postStream(path, payload) {
   const previousMessageIds = new Set(history.map((message) => message.id));
   const controller = new AbortController();
   activeStreamController = controller;
+  renderInterruptionQueue();
   try {
     const response = await fetch(`${apiBase}${path}`, {
       method: "POST",
@@ -408,17 +464,23 @@ async function postStream(path, payload) {
     if (requestEpoch === streamEpoch) pausedStreamRequest = null;
   } catch (error) {
     if (error.name === "AbortError" && requestEpoch === streamEpoch) {
+      const currentAbortReason = abortReason;
       stageIndex = previousStageIndex;
       stageBadge.textContent = previousStageLabel;
       currentBrief = previousBrief;
       history = history.filter((message) => previousMessageIds.has(message.id));
       renderMessages();
       renderOutputs(currentBrief);
-      pausedStreamRequest = { path, payload };
+      pausedStreamRequest = currentAbortReason === "pause" ? { path, payload } : null;
+      if (currentAbortReason === "user_interruption") return false;
     }
     throw error;
   } finally {
-    if (activeStreamController === controller) activeStreamController = null;
+    if (activeStreamController === controller) {
+      activeStreamController = null;
+      abortReason = "";
+    }
+    renderInterruptionQueue();
   }
 }
 
@@ -450,6 +512,10 @@ function handleStreamEvent(event) {
   }
   if (event.type === "tool_activity") {
     addToolActivities([data]);
+    return;
+  }
+  if (event.type === "background_task") {
+    addBackgroundTask(data);
     return;
   }
   if (event.type === "done") {
@@ -627,6 +693,35 @@ function renderActivities() {
   activityList.innerHTML = toolActivities.length
     ? toolActivities.map((activity) => renderActivity(activity)).join("")
     : '<p class="muted-line">No tool activity yet.</p>';
+}
+
+function addBackgroundTask(task) {
+  if (!task?.id) return;
+  const existingIndex = backgroundTasks.findIndex((item) => item.id === task.id);
+  if (existingIndex >= 0) backgroundTasks.splice(existingIndex, 1);
+  backgroundTasks.unshift(task);
+  backgroundTasks = backgroundTasks.slice(0, 20);
+  renderBackgroundTasks();
+}
+
+function renderBackgroundTasks() {
+  backgroundTaskCount.textContent = String(backgroundTasks.length);
+  backgroundTaskList.innerHTML = backgroundTasks.length
+    ? backgroundTasks.map((task) => `
+        <div class="background-task ${escapeHtml(task.status || "queued")}">
+          <div>
+            <strong>${escapeHtml(task.ownerAgent || "agent")} - ${escapeHtml(task.name || "Background task")}</strong>
+            <span>${escapeHtml(task.query || task.message || "")}</span>
+          </div>
+          <b>${escapeHtml(formatTaskStatus(task.status))}</b>
+        </div>
+      `).join("")
+    : '<p class="muted-line">No background tasks yet.</p>';
+}
+
+function formatTaskStatus(status) {
+  if (status === "approval_required") return "approval";
+  return String(status || "queued").replaceAll("_", " ");
 }
 
 async function importMaterialFile(file) {

@@ -86,6 +86,8 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Continue the meeting through staged discussion.
 - Run the meeting through all fixed stages and then generate a summary.
 - Pause an active meeting and resume from the last completed stage.
+- Queue user messages while teammates are speaking, with an optional immediate interrupt.
+- Let silent background research continue alongside the visible discussion.
 - Ask the squad a follow-up.
 - Generate a final brief.
 - Stream teammate responses as they are generated.

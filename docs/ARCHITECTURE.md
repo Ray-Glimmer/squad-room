@@ -36,6 +36,8 @@ apps/api
 - Render streamed messages as sanitized Markdown.
 - Let the user continue, interrupt, and summarize.
 - Abort an active stream when paused and retry the interrupted step on resume.
+- Queue user interruptions instead of opening concurrent visible streams.
+- Show silent background-task progress separately from foreground discussion.
 - Store only non-secret meeting state.
 - Show tool activity and approval requests.
 
@@ -64,9 +66,17 @@ message_start  Placeholder message for one teammate
 token          Incremental text chunk for that message
 message_done   Final message object
 brief          Structured current-state brief after the stage
+background_task Silent task state update
 done           Outputs and usage for the whole request
 error          Stream-level error message
 ```
+
+## Meeting Concurrency
+
+- Foreground discussion is single-stream: visible agent turns, queued user interruptions, and stage progression do not race each other.
+- User messages queue while a visible request is active. `Interrupt now` cancels the current visible step, processes the queue, and lets automatic meeting mode retry the interrupted stage.
+- Background web research can run alongside visible teammate output. Results enter shared research context before the stage brief is recorded.
+- Captain responds to user interruptions with one topic-routed specialist instead of always waking the same teammate pair.
 
 ## Brief Recorder
 

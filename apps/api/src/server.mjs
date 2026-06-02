@@ -264,6 +264,7 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
     const messages = [];
     const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
     sendEvent(res, "meta", { stage, stageIndex });
+    const backgroundToolsPromise = startBackgroundTools({ meeting, stage, res, signal });
 
     for (const speakerId of speakerIds) {
       const member = squad.find((item) => item.id === speakerId);
@@ -271,11 +272,13 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
       messages.push(response.message);
       addUsage(usage, response.usage);
     }
+    const backgroundToolActivities = await backgroundToolsPromise;
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
-    for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
+    const foregroundToolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
+    for (const activity of foregroundToolActivities) sendEvent(res, "tool_activity", activity);
+    const toolActivities = [...backgroundToolActivities, ...foregroundToolActivities];
 
     sendEvent(res, "done", {
       stage,
@@ -302,7 +305,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
     stage,
     createdAt: new Date().toISOString()
   };
-  const speakers = ["captain", "critic"];
+  const speakers = selectUserResponders(userMessage);
   const messages = [userEntry];
   const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
@@ -320,7 +323,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage);
-  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
+  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, includeResearch: false });
 
   return {
     stage,
@@ -351,7 +354,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
     sendEvent(res, "meta", { stage, stageIndex });
     sendEvent(res, "message_done", { message: userEntry });
 
-    for (const speakerId of ["captain", "critic"]) {
+    for (const speakerId of selectUserResponders(userMessage)) {
       const member = squad.find((item) => item.id === speakerId);
       const response = await streamMember({
         res,
@@ -368,7 +371,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
@@ -408,7 +411,7 @@ async function summarize({ meeting, history }) {
   const message = makeMessage(member, response.content, stage);
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, message] });
   addUsage(response.usage, brief.usage);
-  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
+  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, includeResearch: false });
 
   return {
     stage,
@@ -441,7 +444,7 @@ async function streamSummaryResponse(res, { meeting, history }) {
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message], signal });
     addUsage(response.usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
     sendEvent(res, "done", {
       stage,
@@ -463,6 +466,19 @@ async function askMember({ meeting, member, stage, history, userMessage = "" }) 
   }
 
   return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, member, stage, history, userMessage }) });
+}
+
+function selectUserResponders(userMessage) {
+  const text = String(userMessage || "").toLowerCase();
+  const routes = [
+    [["代码", "技术", "实现", "架构", "接口", "部署", "bug", "api", "code", "build"], "engineer"],
+    [["用户", "市场", "商业", "增长", "投资", "竞品", "market", "business", "growth"], "strategist"],
+    [["设计", "界面", "交互", "视觉", "体验", "演示", "design", "ui", "ux", "demo"], "designer"],
+    [["点子", "创意", "方向", "方案", "脑暴", "idea", "creative", "option"], "ideator"],
+    [["风险", "质疑", "漏洞", "反对", "评委", "risk", "judge", "weak"], "critic"]
+  ];
+  const specialist = routes.find(([keywords]) => keywords.some((keyword) => text.includes(keyword)))?.[1] || "critic";
+  return specialist === "captain" ? ["captain"] : ["captain", specialist];
 }
 
 function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "" }) {
@@ -894,15 +910,67 @@ function loadSkill(id, name, owner, relativePath) {
   };
 }
 
-async function runAutomaticTools({ meeting, stage, brief, signal }) {
-  const calls = [];
-  const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
-  const researchQueries = {
+function getResearchCall(meeting, stage) {
+  const queries = {
     Framing: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria`,
     Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
     Challenge: `${meeting.topic} risks failure cases criticism alternatives`,
     "Pitch Prep": `${meeting.topic} evidence benchmarks case studies pitch questions`
   };
+  if (!queries[stage]) return null;
+  return {
+    toolId: "web_search",
+    agentId: stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist",
+    payload: {
+      query: queries[stage],
+      approved: meeting.autoWebResearch
+    }
+  };
+}
+
+async function startBackgroundTools({ meeting, stage, res, signal }) {
+  const call = getResearchCall(meeting, stage);
+  if (!call) return [];
+  const task = {
+    id: randomUUID(),
+    name: "Web Research",
+    ownerAgent: call.agentId,
+    query: call.payload.query,
+    status: call.payload.approved ? "running" : "approval_required",
+    visibility: "notify",
+    stageCreated: stage
+  };
+  sendEvent(res, "background_task", task);
+  const activity = await executeTool({
+    ...call,
+    source: "background",
+    automationKey: `${stage}:${call.toolId}`
+  }, { signal });
+  if (activity.status === "completed") appendResearchContext(meeting, activity);
+  sendEvent(res, "tool_activity", activity);
+  sendEvent(res, "background_task", {
+    ...task,
+    status: activity.status === "completed" ? "completed" : activity.status,
+    message: activity.error || `${Array.isArray(activity.result) ? activity.result.length : 0} sources`
+  });
+  return [activity];
+}
+
+function appendResearchContext(meeting, activity) {
+  if (!Array.isArray(activity.result)) return;
+  const section = [
+    `Research query: ${activity.query}`,
+    ...activity.result.map((item, index) => `${index + 1}. ${item.title}\nSource: ${item.url}\nSummary: ${item.snippet || "No snippet available."}`)
+  ].join("\n\n");
+  meeting.researchContext = [meeting.researchContext, section]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(-6000);
+}
+
+async function runAutomaticTools({ meeting, stage, brief, signal, includeResearch = true }) {
+  const calls = [];
+  const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
 
   if (stage === "Framing") {
     if (hasProjectMaterials) {
@@ -914,16 +982,8 @@ async function runAutomaticTools({ meeting, stage, brief, signal }) {
     }
   }
 
-  if (researchQueries[stage]) {
-    calls.push({
-      toolId: "web_search",
-      agentId: stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist",
-      payload: {
-        query: researchQueries[stage],
-        approved: meeting.autoWebResearch
-      }
-    });
-  }
+  const researchCall = includeResearch ? getResearchCall(meeting, stage) : null;
+  if (researchCall) calls.push(researchCall);
 
   if (stage === "Convergence" || stage === "Summary") {
     calls.push({ toolId: "write_artifact", agentId: "captain", payload: { brief } });
