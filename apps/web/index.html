@@ -45,6 +45,18 @@
             Project materials
             <textarea name="projectMaterials" placeholder="Paste contest rules, judging criteria, notes, source excerpts, or existing project context..."></textarea>
           </label>
+          <div class="material-import">
+            <input
+              id="materialFileInput"
+              type="file"
+              accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.xml,.yaml,.yml,.pdf,.docx,.xls,.xlsx"
+              multiple
+              hidden
+            />
+            <button type="button" id="materialFileButton" class="ghost-button">Import Files</button>
+            <span class="material-help">TXT, MD, CSV, JSON, HTML, PDF, DOCX, XLS/XLSX</span>
+          </div>
+          <div id="materialFileList" class="material-file-list"></div>
           <label>
             API endpoint
             <input name="apiBase" value="http://localhost:8787" />
@@ -121,6 +133,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260602-4" type="module"></script>
+    <script src="./app.js?v=20260602-5" type="module"></script>
   </body>
 </html>

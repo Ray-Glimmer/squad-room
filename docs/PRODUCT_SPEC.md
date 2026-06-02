@@ -56,7 +56,8 @@ Early target users are students, independent makers, competition participants, a
 
 ## Skills and Tools
 
-- Users can paste project materials when opening a room.
+- Users can paste project materials or import explicitly selected TXT-like, PDF, DOCX, XLS, and XLSX files when opening a room.
+- Imported files are parsed locally in the browser and added to the bounded meeting context.
 - Teammates receive role-specific working methods from editable Markdown files.
 - The room displays visible tool activity.
 - Local tools can read pasted context, create a Markdown artifact, and create tasks from the brief.

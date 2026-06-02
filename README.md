@@ -91,8 +91,15 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Render teammate messages as sanitized Markdown.
 - Generate a structured brief once per stage with a bounded recorder step.
 - Load teammate skills from editable Markdown files.
+- Import common project-material files into the room context.
 - Use visible local-first tools for project context, artifacts, tasks, and approved web-search requests.
 - View extracted outputs: proposal, actions, risks, and judge questions.
+
+## Project Materials
+
+You can paste notes or import files before opening a room. Plain-text formats are read directly in the browser: TXT, Markdown, CSV, TSV, JSON, HTML, XML, YAML, and YML. PDF, DOCX, XLS, and XLSX files are also supported through parser libraries loaded on demand from jsDelivr.
+
+Files are parsed locally in your browser. The files themselves are not uploaded to jsDelivr. When you open a room, the extracted text becomes part of the meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined text context is limited to 12,000 characters.
 
 ## Skills and Tools
 
@@ -102,12 +109,12 @@ The current tool set is intentionally limited:
 
 | Tool | Behavior | Approval |
 | --- | --- | --- |
-| Read Project Context | Reads only the materials pasted into the meeting form. | None |
+| Read Project Context | Reads only materials pasted or explicitly imported into the meeting form. | None |
 | Create Brief Artifact | Converts the current brief into Markdown. | None |
 | Create Tasks | Converts current brief actions into local todo items. | None |
 | Request Web Search | Creates a visible search request. It does not search in the background. | User click |
 
-This first version keeps tool use visible and local-first. It does not read arbitrary files from your machine, run code, or transmit pasted project materials to third-party search engines.
+This first version keeps tool use visible and local-first. It does not read arbitrary files from your machine, run code, or transmit project materials to third-party search engines.
 
 ## GitHub Pages
 

@@ -215,6 +215,49 @@ textarea:focus {
   margin-top: 14px;
 }
 
+.material-import {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.material-help {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.material-file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.material-file {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: 12px;
+}
+
+.material-file span {
+  color: var(--muted);
+  text-align: right;
+}
+
+.material-file.ready {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.material-file.error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
 .capability-panel {
   margin-top: 20px;
   padding-top: 16px;

@@ -15,6 +15,8 @@ const proposalKeywords = ["建议", "定位", "目标", "用户", "方案", "方
 const actionKeywords = ["任务", "下一步", "立刻", "24小时", "测试", "产出", "发布", "执行", "验证", "模板", "build", "next", "step", "test"];
 const riskKeywords = ["风险", "漏洞", "假设", "失败", "成本", "屏蔽", "节奏", "不够", "问题", "risk", "weak", "cost", "fail"];
 const questionKeywords = ["问题", "评委", "为什么", "是否", "如何证明", "怎么", "question", "why", "whether"];
+const MATERIAL_TEXT_LIMIT = 12000;
+const MATERIAL_FILE_SIZE_LIMIT = 10 * 1024 * 1024;
 
 let apiBase = defaultApiBase;
 let meeting = null;
@@ -25,6 +27,7 @@ let isRunningMeeting = false;
 let currentBrief = {};
 let availableSkills = [];
 let toolActivities = [];
+let materialFiles = [];
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
@@ -47,6 +50,9 @@ const artifactButton = document.querySelector("#artifactButton");
 const taskButton = document.querySelector("#taskButton");
 const searchToolForm = document.querySelector("#searchToolForm");
 const searchToolInput = document.querySelector("#searchToolInput");
+const materialFileInput = document.querySelector("#materialFileInput");
+const materialFileButton = document.querySelector("#materialFileButton");
+const materialFileList = document.querySelector("#materialFileList");
 const roomTitle = document.querySelector("#roomTitle");
 const stageBadge = document.querySelector("#stageBadge");
 const statusLine = document.querySelector("#statusLine");
@@ -57,6 +63,7 @@ renderSquad();
 renderSkills();
 renderOutputs({});
 renderActivities();
+renderMaterialFiles();
 refreshConfig();
 
 meetingForm.addEventListener("submit", async (event) => {
@@ -68,8 +75,7 @@ meetingForm.addEventListener("submit", async (event) => {
     topic: form.get("topic"),
     contestType: form.get("contestType"),
     goal: form.get("goal"),
-    constraints: form.get("constraints")
-    ,
+    constraints: form.get("constraints"),
     projectMaterials: form.get("projectMaterials")
   };
   await startMeeting();
@@ -91,8 +97,20 @@ newMeetingButton.addEventListener("click", () => {
   totalTokens = 0;
   currentBrief = {};
   toolActivities = [];
+  materialFiles = [];
+  renderMaterialFiles();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
+});
+
+materialFileButton.addEventListener("click", () => materialFileInput.click());
+
+materialFileInput.addEventListener("change", async () => {
+  const files = [...materialFileInput.files];
+  materialFileInput.value = "";
+  for (const file of files) {
+    await importMaterialFile(file);
+  }
 });
 
 readContextButton.addEventListener("click", async () => {
@@ -495,6 +513,118 @@ function renderActivities() {
   activityList.innerHTML = toolActivities.length
     ? toolActivities.map((activity) => renderActivity(activity)).join("")
     : '<p class="muted-line">No tool activity yet.</p>';
+}
+
+async function importMaterialFile(file) {
+  const item = {
+    id: crypto.randomUUID(),
+    name: file.name,
+    status: "reading",
+    message: "Reading locally..."
+  };
+  materialFiles.push(item);
+  renderMaterialFiles();
+
+  try {
+    if (file.size > MATERIAL_FILE_SIZE_LIMIT) {
+      throw new Error("File is larger than 10 MB.");
+    }
+    const text = cleanImportedText(await extractFileText(file));
+    if (!text) throw new Error("No readable text was found.");
+    const truncated = appendProjectMaterial(file.name, text);
+    item.status = "ready";
+    item.message = truncated
+      ? `${MATERIAL_TEXT_LIMIT.toLocaleString()} total characters kept; extra text truncated`
+      : `${text.length.toLocaleString()} characters imported`;
+  } catch (error) {
+    item.status = "error";
+    item.message = error.message || "Could not read this file.";
+  }
+  renderMaterialFiles();
+}
+
+async function extractFileText(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  if (["txt", "md", "markdown", "csv", "tsv", "json", "html", "htm", "xml", "yaml", "yml"].includes(extension)) {
+    return file.text();
+  }
+  if (extension === "pdf") return extractPdfText(file);
+  if (extension === "docx") return extractDocxText(file);
+  if (["xls", "xlsx"].includes(extension)) return extractSpreadsheetText(file);
+  throw new Error("Unsupported file format.");
+}
+
+async function extractPdfText(file) {
+  const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item) => item.str).join(" "));
+  }
+  return pages.join("\n\n");
+}
+
+async function extractDocxText(file) {
+  await loadScript("https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js", "mammoth");
+  const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return result.value;
+}
+
+async function extractSpreadsheetText(file) {
+  await loadScript("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js", "XLSX");
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  return workbook.SheetNames
+    .map((name) => `# Sheet: ${name}\n${window.XLSX.utils.sheet_to_csv(workbook.Sheets[name])}`)
+    .join("\n\n");
+}
+
+function loadScript(src, globalName) {
+  if (window[globalName]) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-library="${globalName}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Could not load ${globalName}.`)), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.dataset.library = globalName;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Could not load ${globalName}. Check your network connection.`));
+    document.head.appendChild(script);
+  });
+}
+
+function appendProjectMaterial(name, text) {
+  const textarea = meetingForm.elements.projectMaterials;
+  const section = `## Imported file: ${name}\n\n${text}`;
+  const combined = [textarea.value.trim(), section].filter(Boolean).join("\n\n");
+  textarea.value = combined.slice(0, MATERIAL_TEXT_LIMIT);
+  return combined.length > MATERIAL_TEXT_LIMIT;
+}
+
+function cleanImportedText(value) {
+  return String(value || "")
+    .replace(/\u0000/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
+}
+
+function renderMaterialFiles() {
+  materialFileList.innerHTML = materialFiles.length
+    ? materialFiles.map((item) => `
+        <div class="material-file ${item.status}">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.message)}</span>
+        </div>
+      `).join("")
+    : "";
 }
 
 function renderActivity(activity) {

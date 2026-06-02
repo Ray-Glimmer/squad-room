@@ -755,7 +755,7 @@ function normalizeMeeting(input = {}) {
     contestType: String(input.contestType || "General").trim(),
     goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
-    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 6000)
+    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000)
   };
 }
 
