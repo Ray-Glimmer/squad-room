@@ -93,6 +93,8 @@ SQUAD_ROOM_MOCK=false
 - 查看每个队友专属的技能和工具权限。
 - 在 Task Center 中跟踪工作项、负责人和交付物类型。
 - 查看按 agent 分类的 token 用量和已完成工具调用。
+- 使用共享会议 workspace、安静的 Team Inbox 和每位 agent 的 workspace 摘要。
+- 默认使用有边界的机会型探索，也可以开启 Exploration mode 进行更深入的后台研究。
 - 向小队追问或补充约束。
 - 生成最终 brief。
 - 队友发言会以流式方式逐段显示。
@@ -123,6 +125,8 @@ SQUAD_ROOM_MOCK=false
 | Web Research | Agent 会按阶段提出相关检索请求。默认情况下每条关键词都等待批准；开启 Automatic web research 后，agent 可以直接发送关键词。结果会加入共享上下文。 | 可选用户点击 |
 
 低风险工具会在限定的会议阶段自动执行，并显示在 Tool Activity 中。Task Center 会把行动项整理为带负责人和交付物类型的可见任务。自动检索默认关闭，可以在创建会议时或会议室顶部开启。开启后，agent 可以直接发送可见的检索关键词，不再逐条等待批准。只有搜索关键词会发送给搜索服务，项目资料不会被发送。当前版本不会读取你电脑上的任意文件，也不会运行代码。
+
+机会型探索默认保持安静：结果会进入 Team Inbox，不会直接打断讨论。普通模式下，每个阶段最多允许两次机会型工具调用；开启 Exploration mode 后，上限提高到四次，用于更深入的后台研究。共享 workspace 会汇总 mission、决策、开放问题、产物和活动记录；每位 agent 的 workspace 摘要会显示其任务、后台工作和发现。
 
 ## GitHub Pages
 

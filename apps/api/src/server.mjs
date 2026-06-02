@@ -510,6 +510,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     `Constraints: ${meeting.constraints}`,
     `Project materials: ${meeting.projectMaterials}`,
     `Approved web research: ${meeting.researchContext}`,
+    `Exploration mode: ${meeting.explorationMode ? "deep exploration enabled" : "bounded exploration, maximum two opportunity-tool calls"}`,
     `Current stage: ${stage}`,
     `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
     "",
@@ -821,7 +822,8 @@ function normalizeMeeting(input = {}) {
     constraints: String(input.constraints || "No constraints provided.").trim(),
     projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000),
     researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000),
-    autoWebResearch: input.autoWebResearch === true
+    autoWebResearch: input.autoWebResearch === true,
+    explorationMode: input.explorationMode === true
   };
 }
 
@@ -931,50 +933,88 @@ function loadSkill(id, name, owner, relativePath) {
   };
 }
 
-function getResearchCall(meeting, stage) {
+function getResearchCalls(meeting, stage) {
   const queries = {
     Framing: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria`,
     Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
     Challenge: `${meeting.topic} risks failure cases criticism alternatives`,
     "Pitch Prep": `${meeting.topic} evidence benchmarks case studies pitch questions`
   };
-  if (!queries[stage]) return null;
-  return {
+  if (!queries[stage]) return [];
+  const ownerAgent = stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist";
+  const followUps = {
+    Framing: [`${meeting.topic} user demand alternatives case study`, `${meeting.topic} market gap comparable products`, `${meeting.topic} emerging trends underserved users`],
+    Feasibility: [`${meeting.topic} implementation failure cases limitations`, `${meeting.topic} open source alternatives benchmark`, `${meeting.topic} cost complexity maintenance tradeoffs`],
+    Challenge: [`${meeting.topic} user complaints adoption barriers`, `${meeting.topic} competitor weaknesses lessons learned`, `${meeting.topic} strongest objections counter evidence`],
+    "Pitch Prep": [`${meeting.topic} measurable impact metrics evidence`, `${meeting.topic} judge questions objections proof`, `${meeting.topic} successful pitch examples differentiators`]
+  };
+  const limit = meeting.explorationMode ? 4 : 2;
+  return [queries[stage], ...(meeting.explorationMode ? followUps[stage] || [] : [])]
+    .slice(0, limit)
+    .map((query, index) => ({
     toolId: "web_search",
-    agentId: stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist",
+    agentId: ownerAgent,
+    exploration: {
+      type: "opportunity",
+      depth: meeting.explorationMode ? "deep" : "bounded",
+      callIndex: index + 1,
+      callLimit: limit
+    },
     payload: {
-      query: queries[stage],
+      query,
       approved: meeting.autoWebResearch
     }
-  };
+  }));
 }
 
 async function startBackgroundTools({ meeting, stage, res, signal }) {
-  const call = getResearchCall(meeting, stage);
-  if (!call) return [];
-  const task = {
+  const calls = getResearchCalls(meeting, stage);
+  return Promise.all(calls.map(async (call) => {
+    const task = {
+      id: randomUUID(),
+      name: "Opportunity Research",
+      ownerAgent: call.agentId,
+      query: call.payload.query,
+      status: call.payload.approved ? "running" : "approval_required",
+      visibility: "inbox",
+      taskType: "opportunity",
+      budget: call.exploration,
+      stageCreated: stage
+    };
+    sendEvent(res, "background_task", task);
+    const activity = await executeTool({
+      ...call,
+      source: "background",
+      automationKey: `${stage}:${call.toolId}:${call.exploration.callIndex}`
+    }, { signal });
+    if (activity.status === "completed") {
+      appendResearchContext(meeting, activity);
+      sendEvent(res, "inbox_item", makeInboxItem({ stage, task, activity }));
+    }
+    sendEvent(res, "tool_activity", activity);
+    sendEvent(res, "background_task", {
+      ...task,
+      status: activity.status === "completed" ? "completed" : activity.status,
+      message: activity.error || `${Array.isArray(activity.result) ? activity.result.length : 0} sources`
+    });
+    return activity;
+  }));
+}
+
+function makeInboxItem({ stage, task, activity }) {
+  const result = Array.isArray(activity.result) ? activity.result : [];
+  return {
     id: randomUUID(),
-    name: "Web Research",
-    ownerAgent: call.agentId,
-    query: call.payload.query,
-    status: call.payload.approved ? "running" : "approval_required",
-    visibility: "notify",
-    stageCreated: stage
+    ownerAgent: task.ownerAgent,
+    stageCreated: stage,
+    impact: stage === "Challenge" ? "decision-changing" : "useful",
+    title: `${task.ownerAgent} completed ${task.name.toLowerCase()}`,
+    summary: result.length ? `${result.length} sources collected for: ${activity.query}` : "No sources collected.",
+    artifactType: "research-note",
+    status: "unread",
+    budget: task.budget,
+    createdAt: new Date().toISOString()
   };
-  sendEvent(res, "background_task", task);
-  const activity = await executeTool({
-    ...call,
-    source: "background",
-    automationKey: `${stage}:${call.toolId}`
-  }, { signal });
-  if (activity.status === "completed") appendResearchContext(meeting, activity);
-  sendEvent(res, "tool_activity", activity);
-  sendEvent(res, "background_task", {
-    ...task,
-    status: activity.status === "completed" ? "completed" : activity.status,
-    message: activity.error || `${Array.isArray(activity.result) ? activity.result.length : 0} sources`
-  });
-  return [activity];
 }
 
 function appendResearchContext(meeting, activity) {
@@ -1003,8 +1043,8 @@ async function runAutomaticTools({ meeting, stage, brief, signal, includeResearc
     }
   }
 
-  const researchCall = includeResearch ? getResearchCall(meeting, stage) : null;
-  if (researchCall) calls.push(researchCall);
+  const researchCalls = includeResearch ? getResearchCalls(meeting, stage) : [];
+  calls.push(...researchCalls);
 
   if (stage === "Convergence" || stage === "Summary") {
     calls.push({ toolId: "write_artifact", agentId: "captain", payload: { brief } });
@@ -1036,6 +1076,7 @@ async function executeTool(body = {}, { signal } = {}) {
     agentId,
     source: String(body.source || "manual"),
     automationKey: String(body.automationKey || ""),
+    exploration: body.exploration || null,
     createdAt: new Date().toISOString()
   };
 

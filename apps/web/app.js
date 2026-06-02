@@ -40,6 +40,7 @@ let toolActivities = [];
 let backgroundTasks = [];
 let workItems = [];
 let squadCapabilities = [];
+let inboxItems = [];
 let materialFiles = [];
 
 const setupView = document.querySelector("#setupView");
@@ -67,6 +68,10 @@ const backgroundTaskList = document.querySelector("#backgroundTaskList");
 const workItemCount = document.querySelector("#workItemCount");
 const workItemList = document.querySelector("#workItemList");
 const usageBreakdown = document.querySelector("#usageBreakdown");
+const inboxCount = document.querySelector("#inboxCount");
+const inboxList = document.querySelector("#inboxList");
+const agentWorkspaceList = document.querySelector("#agentWorkspaceList");
+const sharedWorkspaceSummary = document.querySelector("#sharedWorkspaceSummary");
 const toolRegistry = document.querySelector("#toolRegistry");
 const materialFileInput = document.querySelector("#materialFileInput");
 const materialFileButton = document.querySelector("#materialFileButton");
@@ -76,6 +81,7 @@ const stageBadge = document.querySelector("#stageBadge");
 const statusLine = document.querySelector("#statusLine");
 const usageLine = document.querySelector("#usageLine");
 const autoResearchToggle = document.querySelector("#autoResearchToggle");
+const explorationModeToggle = document.querySelector("#explorationModeToggle");
 
 meetingForm.elements.apiBase.value = apiBase;
 renderSquad();
@@ -85,6 +91,7 @@ renderOutputs({});
 renderActivities();
 renderBackgroundTasks();
 renderWorkItems();
+renderWorkspace();
 renderUsageBreakdown();
 renderInterruptionQueue();
 renderMaterialFiles();
@@ -102,7 +109,8 @@ meetingForm.addEventListener("submit", async (event) => {
     constraints: form.get("constraints"),
     projectMaterials: form.get("projectMaterials"),
     researchContext: "",
-    autoWebResearch: form.get("autoWebResearch") === "on"
+    autoWebResearch: form.get("autoWebResearch") === "on",
+    explorationMode: form.get("explorationMode") === "on"
   };
   await startMeeting();
 });
@@ -128,6 +136,7 @@ newMeetingButton.addEventListener("click", () => {
   toolActivities = [];
   backgroundTasks = [];
   workItems = [];
+  inboxItems = [];
   pendingUserMessages = [];
   materialFiles = [];
   isPaused = false;
@@ -137,6 +146,7 @@ newMeetingButton.addEventListener("click", () => {
   renderMaterialFiles();
   renderBackgroundTasks();
   renderWorkItems();
+  renderWorkspace();
   renderUsageBreakdown();
   renderInterruptionQueue();
   setupView.classList.remove("hidden");
@@ -185,6 +195,18 @@ autoResearchToggle.addEventListener("change", () => {
       ? "Automatic web research is enabled. Agents may send visible search queries without per-search approval."
       : "Automatic web research is disabled. New search queries will wait for approval.",
     "Research"
+  );
+});
+
+explorationModeToggle.addEventListener("change", () => {
+  if (!meeting) return;
+  meeting.explorationMode = explorationModeToggle.checked;
+  meetingForm.elements.explorationMode.checked = explorationModeToggle.checked;
+  addSystemMessage(
+    explorationModeToggle.checked
+      ? "Exploration mode is enabled. Opportunity research may use up to four bounded tool calls per stage."
+      : "Exploration mode is disabled. Opportunity research is limited to two tool calls per stage.",
+    "Workspace"
   );
 });
 
@@ -242,17 +264,20 @@ async function startMeeting() {
   toolActivities = [];
   backgroundTasks = [];
   workItems = [];
+  inboxItems = [];
   pendingUserMessages = [];
   isPaused = false;
   resumeAutomaticRun = false;
   pausedStreamRequest = null;
   renderPauseState();
   autoResearchToggle.checked = Boolean(meeting.autoWebResearch);
+  explorationModeToggle.checked = Boolean(meeting.explorationMode);
   renderMessages();
   renderOutputs({});
   renderActivities();
   renderBackgroundTasks();
   renderWorkItems();
+  renderWorkspace();
   renderUsageBreakdown();
   renderInterruptionQueue();
 
@@ -340,6 +365,7 @@ function applyResult(result) {
   renderMessages();
   currentBrief = result.outputs || currentBrief;
   renderOutputs(currentBrief);
+  renderWorkspace();
   addToolActivities(result.toolActivities);
 }
 
@@ -575,6 +601,7 @@ function handleStreamEvent(event) {
   if (event.type === "brief") {
     currentBrief = data.outputs || {};
     renderOutputs(currentBrief);
+    renderWorkspace();
     return;
   }
   if (event.type === "tool_activity") {
@@ -585,12 +612,17 @@ function handleStreamEvent(event) {
     addBackgroundTask(data);
     return;
   }
+  if (event.type === "inbox_item") {
+    addInboxItem(data);
+    return;
+  }
   if (event.type === "done") {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
     currentBrief = data.outputs || currentBrief;
     renderOutputs(currentBrief);
+    renderWorkspace();
     addToolActivities(data.toolActivities);
     addStageProgressMessage(data.stage);
     return;
@@ -754,6 +786,7 @@ function addToolActivities(activities = []) {
   }
   toolActivities = toolActivities.slice(0, 20);
   renderActivities();
+  renderWorkspace();
   renderUsageBreakdown();
 }
 
@@ -771,6 +804,7 @@ function addBackgroundTask(task) {
   backgroundTasks.unshift(task);
   backgroundTasks = backgroundTasks.slice(0, 20);
   renderBackgroundTasks();
+  renderWorkspace();
 }
 
 function renderBackgroundTasks() {
@@ -781,6 +815,7 @@ function renderBackgroundTasks() {
           <div>
             <strong>${escapeHtml(task.ownerAgent || "agent")} - ${escapeHtml(task.name || "Background task")}</strong>
             <span>${escapeHtml(task.query || task.message || "")}</span>
+            ${task.budget ? `<span>${escapeHtml(task.budget.depth)} exploration · ${escapeHtml(task.budget.callIndex)}/${escapeHtml(task.budget.callLimit)} tool calls</span>` : ""}
           </div>
           <b>${escapeHtml(formatTaskStatus(task.status))}</b>
         </div>
@@ -797,6 +832,7 @@ function addWorkItems(items = []) {
   }
   workItems = workItems.slice(0, 16);
   renderWorkItems();
+  renderWorkspace();
 }
 
 function renderWorkItems() {
@@ -808,10 +844,58 @@ function renderWorkItems() {
             <strong>${escapeHtml(item.title || "Untitled task")}</strong>
             <span>${escapeHtml(item.ownerAgent || "captain")} · ${escapeHtml(item.deliverable || "action")}</span>
           </div>
-          <b>${escapeHtml(formatTaskStatus(item.status))}</b>
+          <div class="work-item-actions">
+            <b>${escapeHtml(formatTaskStatus(item.status))}</b>
+            <button type="button" class="icon-text-button task-toggle" data-task-id="${escapeHtml(item.id)}">${item.status === "running" ? "Pause" : "Start"}</button>
+            <button type="button" class="icon-text-button task-archive" data-task-id="${escapeHtml(item.id)}">Archive</button>
+          </div>
         </article>
       `).join("")
     : '<p class="muted-line">Tasks appear after the squad turns decisions into action.</p>';
+}
+
+function addInboxItem(item) {
+  if (!item?.id) return;
+  inboxItems.unshift(item);
+  inboxItems = inboxItems.slice(0, 16);
+  renderWorkspace();
+}
+
+function renderWorkspace() {
+  inboxCount.textContent = String(inboxItems.filter((item) => item.status !== "archived").length);
+  inboxList.innerHTML = inboxItems.length
+    ? inboxItems.map((item) => `
+        <article class="inbox-item ${escapeHtml(item.impact || "useful")}">
+          <div>
+            <strong>${escapeHtml(item.title || "Workspace update")}</strong>
+            <span>${escapeHtml(item.summary || "")}</span>
+            ${item.budget ? `<span>${escapeHtml(item.budget.depth)} · ${escapeHtml(item.budget.callIndex)}/${escapeHtml(item.budget.callLimit)} calls</span>` : ""}
+          </div>
+          <b>${escapeHtml(item.impact || "note")}</b>
+        </article>
+      `).join("")
+    : '<p class="muted-line">Background discoveries will arrive here without interrupting the discussion.</p>';
+  agentWorkspaceList.innerHTML = members.map((member) => {
+    const assigned = workItems.filter((item) => item.ownerAgent === member.id && item.status !== "archived").length;
+    const discoveries = inboxItems.filter((item) => item.ownerAgent === member.id).length;
+    const background = backgroundTasks.filter((item) => item.ownerAgent === member.id && ["queued", "running", "approval_required"].includes(item.status)).length;
+    return `
+      <div class="agent-workspace">
+        <strong>${escapeHtml(member.name)}</strong>
+        <span>${assigned} assigned · ${background} active · ${discoveries} discoveries</span>
+      </div>
+    `;
+  }).join("");
+  const artifacts = toolActivities.filter((activity) => activity.toolId === "write_artifact" && activity.status === "completed").length;
+  const decisions = Array.isArray(currentBrief.proposal) ? currentBrief.proposal.length : 0;
+  const questions = Array.isArray(currentBrief.questions) ? currentBrief.questions.length : 0;
+  sharedWorkspaceSummary.innerHTML = `
+    <div><b>Mission</b><span>${escapeHtml(meeting?.goal || "Open a room to create the shared mission.")}</span></div>
+    <div><b>Decisions</b><span>${decisions} current direction items</span></div>
+    <div><b>Open questions</b><span>${questions} unresolved items</span></div>
+    <div><b>Shared artifacts</b><span>${artifacts} brief artifacts</span></div>
+    <div><b>Activity log</b><span>${toolActivities.length} visible tool events</span></div>
+  `;
 }
 
 function renderUsageBreakdown() {
@@ -834,6 +918,17 @@ function renderUsageBreakdown() {
     <ul>${toolRows || "<li><span>No tool usage yet.</span></li>"}</ul>
   `;
 }
+
+workItemList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-task-id]");
+  if (!button) return;
+  const item = workItems.find((workItem) => workItem.id === button.dataset.taskId);
+  if (!item) return;
+  if (button.classList.contains("task-archive")) item.status = "archived";
+  else item.status = item.status === "running" ? "paused" : "running";
+  renderWorkItems();
+  renderWorkspace();
+});
 
 function formatTaskStatus(status) {
   if (status === "approval_required") return "approval";

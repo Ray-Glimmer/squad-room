@@ -91,6 +91,8 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Review role-specific skills and tool permissions for each teammate.
 - Track assigned work items, owners, and deliverable types in Task Center.
 - Inspect token usage by agent and completed tool runs.
+- Keep a shared meeting workspace, quiet Team Inbox, and per-agent workspace summaries.
+- Use bounded opportunity exploration by default, or enable Exploration mode for deeper background research.
 - Ask the squad a follow-up.
 - Generate a final brief.
 - Stream teammate responses as they are generated.
@@ -121,6 +123,8 @@ The current tool set is intentionally limited:
 | Web Research | Agents propose stage-relevant research requests. By default each query waits for approval; enable Automatic web research to let agents send queries without asking each time. Results are added to shared context. | Optional user click |
 
 Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. Task Center turns generated action items into visible assignments with an owner and deliverable type. Automatic web research is off by default and can be toggled when creating a meeting or from the room header. When enabled, agents may send visible search queries without per-query approval. Only search queries are sent to the search provider; project materials are not transmitted. This version does not read arbitrary files from your machine or run code.
+
+Opportunity research is quiet by default: results arrive in Team Inbox instead of interrupting the conversation. Standard mode allows at most two opportunity-tool calls per stage. Exploration mode raises that bounded budget to four calls for deeper research. The shared workspace summarizes mission, decisions, open questions, artifacts, and activity. Agent workspace summaries expose assigned tasks, active background work, and discoveries.
 
 ## GitHub Pages
 

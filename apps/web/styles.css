@@ -296,7 +296,7 @@ textarea:focus {
 
 .output-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto auto;
   overflow: hidden;
 }
 
@@ -798,6 +798,125 @@ textarea:focus {
   color: var(--cyan);
   font-size: 10px;
   text-transform: uppercase;
+}
+
+.work-item-actions {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.icon-text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.workspace-panel {
+  min-height: 0;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.inbox-list {
+  display: grid;
+  gap: 6px;
+  max-height: 154px;
+  margin-top: 8px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.inbox-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: 11px;
+}
+
+.inbox-item span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.inbox-item b {
+  color: var(--cyan);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.inbox-item.decision-changing {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.agent-workspaces {
+  margin-top: 8px;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.agent-workspace-list {
+  display: grid;
+  gap: 5px;
+  max-height: 140px;
+  margin-top: 7px;
+  overflow: auto;
+}
+
+.agent-workspace {
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.shared-workspace-summary {
+  display: grid;
+  gap: 5px;
+  max-height: 150px;
+  margin-top: 7px;
+  overflow: auto;
+}
+
+.shared-workspace-summary div {
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.shared-workspace-summary b,
+.shared-workspace-summary span {
+  display: block;
+}
+
+.shared-workspace-summary b {
+  color: var(--text);
+}
+
+.shared-workspace-summary span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.agent-workspace span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .background-task-list {
