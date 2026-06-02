@@ -462,6 +462,12 @@ textarea:focus {
   color: #334155;
 }
 
+.message.interrupted {
+  border-color: #f59e0b;
+  border-style: dashed;
+  background: #fffbeb;
+}
+
 .message-head {
   display: flex;
   justify-content: space-between;
@@ -474,6 +480,11 @@ textarea:focus {
 .message-stage {
   color: var(--muted);
   font-weight: 700;
+}
+
+.message-interrupted {
+  margin-right: 8px;
+  color: #b45309;
 }
 
 .message.user .message-stage {

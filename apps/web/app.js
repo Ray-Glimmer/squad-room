@@ -289,7 +289,7 @@ function pauseMeeting({ announce = true } = {}) {
   abortReason = "pause";
   activeStreamController?.abort();
   renderPauseState();
-  if (announce) addSystemMessage("Meeting paused. The current request was stopped; resume to continue from the last completed stage.", "Control");
+  if (announce) addSystemMessage("Meeting paused. Partial output is preserved; resume to continue from the last completed stage.", "Control");
 }
 
 function renderPauseState() {
@@ -339,11 +339,12 @@ function renderMessages() {
 
 function renderMessageHtml(message) {
   const kind = message.kind || "agent";
+  const interrupted = message.interrupted ? " interrupted" : "";
   return `
-    <article class="message ${kind}" data-message-id="${escapeHtml(message.id)}">
+    <article class="message ${kind}${interrupted}" data-message-id="${escapeHtml(message.id)}">
       <div class="message-head">
         <span>${escapeHtml(message.speakerName || message.speakerId)}</span>
-        <span class="message-stage">${escapeHtml(message.stage || "")}</span>
+        <span class="message-stage">${message.interrupted ? '<span class="message-interrupted">Interrupted</span>' : ""}${escapeHtml(message.stage || "")}</span>
       </div>
       <div class="markdown-body">${renderMarkdown(message.content || "")}</div>
     </article>
@@ -468,10 +469,23 @@ async function postStream(path, payload) {
       stageIndex = previousStageIndex;
       stageBadge.textContent = previousStageLabel;
       currentBrief = previousBrief;
-      history = history.filter((message) => previousMessageIds.has(message.id));
+      if (currentAbortReason === "pause") {
+        history = history
+          .filter((message) => previousMessageIds.has(message.id) || (message.kind !== "user" && String(message.content || "").trim()))
+          .map((message) => {
+            if (!previousMessageIds.has(message.id) && message.streaming) {
+              return { ...message, interrupted: true, streaming: false };
+            }
+            return message;
+          });
+      } else {
+        history = history.filter((message) => previousMessageIds.has(message.id));
+      }
       renderMessages();
       renderOutputs(currentBrief);
-      pausedStreamRequest = currentAbortReason === "pause" ? { path, payload } : null;
+      pausedStreamRequest = currentAbortReason === "pause"
+        ? { path, payload: buildResumePayload(payload, history) }
+        : null;
       if (currentAbortReason === "user_interruption") return false;
     }
     throw error;
@@ -482,6 +496,11 @@ async function postStream(path, payload) {
     }
     renderInterruptionQueue();
   }
+}
+
+function buildResumePayload(payload, resumeHistory) {
+  if (!Object.hasOwn(payload, "history")) return payload;
+  return { ...payload, history: resumeHistory };
 }
 
 function parseEventBlock(block) {
@@ -502,9 +521,9 @@ function handleStreamEvent(event) {
     if (data.stage) stageBadge.textContent = data.stage;
     return;
   }
-  if (event.type === "message_start") return upsertMessage(data.message);
+  if (event.type === "message_start") return upsertMessage({ ...data.message, streaming: true });
   if (event.type === "token") return appendToken(data.id, data.token || "");
-  if (event.type === "message_done") return finalizeMessage(data.message);
+  if (event.type === "message_done") return finalizeMessage({ ...data.message, streaming: false });
   if (event.type === "brief") {
     currentBrief = data.outputs || {};
     renderOutputs(currentBrief);
