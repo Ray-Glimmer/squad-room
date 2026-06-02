@@ -53,3 +53,11 @@ Early target users are students, independent makers, competition participants, a
 - Teammate output streams into the chat as it is generated.
 - Message content is rendered as Markdown for headings, lists, tables, quotes, and code blocks.
 - Rendered Markdown is sanitized in the browser before insertion.
+
+## Skills and Tools
+
+- Users can paste project materials when opening a room.
+- Teammates receive role-specific working methods from editable Markdown files.
+- The room displays visible tool activity.
+- Local tools can read pasted context, create a Markdown artifact, and create tasks from the brief.
+- Web-search requests require a user click before opening an external search page.

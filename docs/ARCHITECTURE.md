@@ -14,6 +14,8 @@ apps/api
   Calls mock provider or OpenAI-compatible provider
   Streams teammate tokens over server-sent events
   Tracks rough usage per response
+  Loads editable teammate skills
+  Executes a small allowlisted tool registry
 ```
 
 ## API Server Responsibilities
@@ -25,6 +27,7 @@ apps/api
 - Return structured messages and extracted outputs.
 - Return streaming events for live teammate output.
 - Avoid logging secrets.
+- Keep tool execution allowlisted and inspectable.
 
 ## Frontend Responsibilities
 
@@ -33,6 +36,22 @@ apps/api
 - Render streamed messages as sanitized Markdown.
 - Let the user continue, interrupt, and summarize.
 - Store only non-secret meeting state.
+- Show tool activity and approval requests.
+
+## Skills
+
+Skills live under `skills/<teammate>/`. Each skill is a Markdown working method injected into the matching teammate prompt.
+
+## Tool Registry
+
+```text
+read_project_file  Read only pasted project materials
+write_artifact     Convert current brief to Markdown
+update_task        Convert brief actions to local todo items
+web_search         Return an approval-required search URL
+```
+
+The MVP does not read arbitrary local paths, run code, or perform background web search.
 
 ## Streaming Events
 

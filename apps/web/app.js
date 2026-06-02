@@ -23,6 +23,8 @@ let stageIndex = 0;
 let totalTokens = 0;
 let isRunningMeeting = false;
 let currentBrief = {};
+let availableSkills = [];
+let toolActivities = [];
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
@@ -36,7 +38,15 @@ const messageForm = document.querySelector("#messageForm");
 const messageInput = document.querySelector("#messageInput");
 const messageList = document.querySelector("#messageList");
 const squadList = document.querySelector("#squadList");
+const skillList = document.querySelector("#skillList");
 const outputs = document.querySelector("#outputs");
+const activityCount = document.querySelector("#activityCount");
+const activityList = document.querySelector("#activityList");
+const readContextButton = document.querySelector("#readContextButton");
+const artifactButton = document.querySelector("#artifactButton");
+const taskButton = document.querySelector("#taskButton");
+const searchToolForm = document.querySelector("#searchToolForm");
+const searchToolInput = document.querySelector("#searchToolInput");
 const roomTitle = document.querySelector("#roomTitle");
 const stageBadge = document.querySelector("#stageBadge");
 const statusLine = document.querySelector("#statusLine");
@@ -44,7 +54,9 @@ const usageLine = document.querySelector("#usageLine");
 
 meetingForm.elements.apiBase.value = apiBase;
 renderSquad();
+renderSkills();
 renderOutputs({});
+renderActivities();
 refreshConfig();
 
 meetingForm.addEventListener("submit", async (event) => {
@@ -57,6 +69,8 @@ meetingForm.addEventListener("submit", async (event) => {
     contestType: form.get("contestType"),
     goal: form.get("goal"),
     constraints: form.get("constraints")
+    ,
+    projectMaterials: form.get("projectMaterials")
   };
   await startMeeting();
 });
@@ -66,6 +80,7 @@ loadDemoButton.addEventListener("click", () => {
   meetingForm.elements.contestType.value = "Computer Science Competition";
   meetingForm.elements.goal.value = "Turn a rough product idea into a pitch-ready MVP plan";
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
+  meetingForm.elements.projectMaterials.value = "Judging criteria: working demo, feasibility, user value, and pitch clarity. Existing idea: a personal AI squad room.";
   meetingForm.elements.apiBase.value = apiBase;
 });
 
@@ -75,8 +90,29 @@ newMeetingButton.addEventListener("click", () => {
   stageIndex = 0;
   totalTokens = 0;
   currentBrief = {};
+  toolActivities = [];
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
+});
+
+readContextButton.addEventListener("click", async () => {
+  await runTool("read_project_file", "captain", { projectMaterials: meeting?.projectMaterials || "" });
+});
+
+artifactButton.addEventListener("click", async () => {
+  await runTool("write_artifact", "captain", { brief: currentBrief });
+});
+
+taskButton.addEventListener("click", async () => {
+  await runTool("update_task", "captain", { brief: currentBrief });
+});
+
+searchToolForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const query = searchToolInput.value.trim();
+  if (!query) return;
+  searchToolInput.value = "";
+  await runTool("web_search", "strategist", { query });
 });
 
 continueButton.addEventListener("click", async () => {
@@ -122,8 +158,10 @@ async function startMeeting() {
   stageIndex = 0;
   totalTokens = 0;
   currentBrief = {};
+  toolActivities = [];
   renderMessages();
   renderOutputs({});
+  renderActivities();
 
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
     await postStream("/api/meeting/start/stream", meeting);
@@ -224,6 +262,8 @@ function renderOutputs(data) {
 async function refreshConfig() {
   try {
     const config = await getJson("/api/config");
+    availableSkills = config.skills || [];
+    renderSkills();
     statusLine.textContent = `${config.mode} mode - ${config.model}`;
   } catch {
     statusLine.textContent = `API offline - ${apiBase}`;
@@ -437,6 +477,63 @@ function renderMarkdown(markdown) {
   }
   return renderBasicMarkdown(repaired);
 }
+
+function renderSkills() {
+  skillList.innerHTML = availableSkills.length
+    ? availableSkills.map((skill) => `<span class="skill-chip">${escapeHtml(skill.name)}</span>`).join("")
+    : '<span class="muted-line">Loading...</span>';
+}
+
+async function runTool(toolId, agentId, payload) {
+  const response = await postJson("/api/tools/execute", { toolId, agentId, payload });
+  toolActivities.unshift(response);
+  renderActivities();
+}
+
+function renderActivities() {
+  activityCount.textContent = String(toolActivities.length);
+  activityList.innerHTML = toolActivities.length
+    ? toolActivities.map((activity) => renderActivity(activity)).join("")
+    : '<p class="muted-line">No tool activity yet.</p>';
+}
+
+function renderActivity(activity) {
+  if (!activity.ok) {
+    return `<article class="activity-item error"><strong>Tool error</strong><p>${escapeHtml(activity.error || "Unknown error")}</p></article>`;
+  }
+  const heading = `${activity.agentId} - ${activity.toolName}`;
+  if (activity.status === "approval_required") {
+    return `
+      <article class="activity-item pending">
+        <strong>${escapeHtml(heading)}</strong>
+        <p>${escapeHtml(activity.query)}</p>
+        <button class="ghost-button approve-search" data-search-url="${escapeHtml(activity.searchUrl)}">Approve</button>
+      </article>
+    `;
+  }
+  return `
+    <article class="activity-item">
+      <strong>${escapeHtml(heading)}</strong>
+      <div class="activity-result">${renderToolResult(activity.result)}</div>
+    </article>
+  `;
+}
+
+function renderToolResult(result) {
+  if (Array.isArray(result)) {
+    return `<ul>${result.map((item) => `<li>${renderMarkdown(item.title || String(item))}</li>`).join("")}</ul>`;
+  }
+  return `<div class="brief-markdown">${renderMarkdown(String(result || "Completed."))}</div>`;
+}
+
+activityList.addEventListener("click", (event) => {
+  const button = event.target.closest(".approve-search");
+  if (!button) return;
+  const url = button.dataset.searchUrl;
+  if (url) window.open(url, "_blank", "noopener,noreferrer");
+  button.textContent = "Opened";
+  button.disabled = true;
+});
 
 function repairMarkdown(source) {
   let repaired = String(source).replaceAll("\uFF0A", "*");

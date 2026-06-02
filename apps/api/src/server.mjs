@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const apiRoot = join(__dirname, "..");
+const repoRoot = join(apiRoot, "..", "..");
 loadEnv(join(apiRoot, ".env"));
 
 const PORT = Number(process.env.API_PORT || 8787);
@@ -14,6 +15,22 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== "true";
+
+const skills = [
+  loadSkill("project-lead", "Project Lead", "captain", "skills/captain/project-lead.md"),
+  loadSkill("idea-expansion", "Idea Expansion", "ideator", "skills/ideator/idea-expansion.md"),
+  loadSkill("technical-review", "Technical Review", "engineer", "skills/engineer/technical-review.md"),
+  loadSkill("competitor-research", "Competitor Research", "strategist", "skills/strategist/competitor-research.md"),
+  loadSkill("demo-story", "Demo Story", "designer", "skills/designer/demo-story.md"),
+  loadSkill("pitch-review", "Pitch Review", "critic", "skills/critic/pitch-review.md")
+];
+
+const tools = [
+  { id: "read_project_file", name: "Read Project Context", approval: "none", agents: ["captain", "engineer", "strategist", "critic"] },
+  { id: "write_artifact", name: "Create Brief Artifact", approval: "none", agents: ["captain", "designer"] },
+  { id: "update_task", name: "Create Tasks", approval: "none", agents: ["captain", "engineer"] },
+  { id: "web_search", name: "Request Web Search", approval: "user", agents: ["ideator", "engineer", "strategist", "critic"] }
+];
 
 const squad = [
   {
@@ -116,8 +133,16 @@ const server = createServer(async (req, res) => {
         model: USE_PROVIDER ? OPENAI_MODEL : "mock-squad",
         hasProviderKey: Boolean(OPENAI_API_KEY),
         squad,
-        stages
+        stages,
+        skills: skills.map(({ content, ...skill }) => skill),
+        tools
       });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/tools/execute") {
+      const body = await readJson(req);
+      sendJson(res, 200, executeTool(body));
       return;
     }
 
@@ -417,22 +442,27 @@ async function askMember({ meeting, member, stage, history, userMessage = "" }) 
     return mockMemberReply({ meeting, member, stage, userMessage });
   }
 
-  return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, stage, history, userMessage }) });
+  return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, member, stage, history, userMessage }) });
 }
 
-function buildMemberUserPrompt({ meeting, stage, history, userMessage = "" }) {
+function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "" }) {
   const recent = getRecentMessages(history, 8);
   const existing = summarizeExistingWork(history);
+  const skill = skills.find((item) => item.owner === member.id);
   return [
     `Meeting topic: ${meeting.topic}`,
     `Contest type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
+    `Project materials: ${meeting.projectMaterials}`,
     `Current stage: ${stage}`,
     `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
     "",
     "Current shared work state:",
     existing,
+    "",
+    "Relevant working method:",
+    skill?.content || "Use a practical, evidence-aware working method.",
     "",
     "Recent team conversation:",
     historyToText(recent),
@@ -506,7 +536,7 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
     }
     usage = mock.usage;
   } else {
-    const user = overrideUser || buildMemberUserPrompt({ meeting, stage, history, userMessage });
+    const user = overrideUser || buildMemberUserPrompt({ meeting, member, stage, history, userMessage });
     const response = await callProviderStream({
       system: buildSystem(member, stage),
       user,
@@ -724,7 +754,8 @@ function normalizeMeeting(input = {}) {
     topic: String(input.topic || "Untitled project").trim(),
     contestType: String(input.contestType || "General").trim(),
     goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
-    constraints: String(input.constraints || "No constraints provided.").trim()
+    constraints: String(input.constraints || "No constraints provided.").trim(),
+    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 6000)
   };
 }
 
@@ -822,6 +853,90 @@ function normalizeBriefKey(item) {
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+}
+
+function loadSkill(id, name, owner, relativePath) {
+  const path = join(repoRoot, ...relativePath.split("/"));
+  return {
+    id,
+    name,
+    owner,
+    content: existsSync(path) ? readFileSync(path, "utf8") : ""
+  };
+}
+
+function executeTool(body = {}) {
+  const toolId = String(body.toolId || "");
+  const agentId = String(body.agentId || "captain");
+  const tool = tools.find((item) => item.id === toolId);
+  if (!tool) return { ok: false, error: "Unknown tool." };
+  if (!tool.agents.includes(agentId)) return { ok: false, error: `${agentId} cannot use ${toolId}.` };
+
+  const payload = body.payload || {};
+  const base = {
+    ok: true,
+    toolId,
+    toolName: tool.name,
+    agentId,
+    createdAt: new Date().toISOString()
+  };
+
+  if (toolId === "read_project_file") {
+    return {
+      ...base,
+      status: "completed",
+      result: truncate(String(payload.projectMaterials || "No project materials provided.").trim(), 4000)
+    };
+  }
+
+  if (toolId === "write_artifact") {
+    return {
+      ...base,
+      status: "completed",
+      result: briefToMarkdown(payload.brief || {})
+    };
+  }
+
+  if (toolId === "update_task") {
+    const actions = Array.isArray(payload.brief?.actions) ? payload.brief.actions : [];
+    return {
+      ...base,
+      status: "completed",
+      result: actions.slice(0, 6).map((title, index) => ({
+        id: `task-${Date.now()}-${index}`,
+        title: String(title),
+        status: "todo"
+      }))
+    };
+  }
+
+  if (toolId === "web_search") {
+    const query = truncate(String(payload.query || "").trim(), 240);
+    if (!query) return { ok: false, error: "Search query is required." };
+    return {
+      ...base,
+      status: "approval_required",
+      query,
+      searchUrl: `https://www.google.com/search?q=${encodeURIComponent(query)}`
+    };
+  }
+
+  return { ok: false, error: "Tool is not implemented." };
+}
+
+function briefToMarkdown(brief) {
+  const sections = [
+    ["Current Direction", brief.proposal],
+    ["Next Actions", brief.actions],
+    ["Risks", brief.risks],
+    ["Open Questions", brief.questions]
+  ];
+  return sections
+    .map(([title, items]) => {
+      const list = Array.isArray(items) && items.length ? items : ["Pending later stages."];
+      return `## ${title}\n\n${list.map((item) => `- ${item}`).join("\n")}`;
+    })
+    .join("\n\n");
 }
 
 function historyToText(history) {

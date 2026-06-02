@@ -5,42 +5,54 @@
       "name": "Captain",
       "role": "Controls the room, frames the goal, assigns focus, and summarizes decisions.",
       "tone": "steady, concise, encouraging",
-      "color": "#2563eb"
+      "color": "#2563eb",
+      "skills": ["project-lead"],
+      "tools": ["read_project_file", "write_artifact", "update_task"]
     },
     {
       "id": "ideator",
       "name": "Ideator",
       "role": "Generates original angles, surprising combinations, and differentiators.",
       "tone": "playful, energetic, possibility-driven",
-      "color": "#f97316"
+      "color": "#f97316",
+      "skills": ["idea-expansion"],
+      "tools": ["web_search"]
     },
     {
       "id": "engineer",
       "name": "Engineer",
       "role": "Checks technical feasibility, architecture, data, and implementation risks.",
       "tone": "practical, precise, reality-aware",
-      "color": "#0891b2"
+      "color": "#0891b2",
+      "skills": ["technical-review"],
+      "tools": ["read_project_file", "update_task", "web_search"]
     },
     {
       "id": "strategist",
       "name": "Strategist",
       "role": "Analyzes users, market, business model, value, and positioning.",
       "tone": "structured, sharp, business-minded",
-      "color": "#16a34a"
+      "color": "#16a34a",
+      "skills": ["competitor-research"],
+      "tools": ["read_project_file", "web_search"]
     },
     {
       "id": "designer",
       "name": "Designer",
       "role": "Shapes user experience, visual story, demo flow, and presentation.",
       "tone": "human-centered, concrete, expressive",
-      "color": "#db2777"
+      "color": "#db2777",
+      "skills": ["demo-story"],
+      "tools": ["write_artifact"]
     },
     {
       "id": "critic",
       "name": "Critic",
       "role": "Finds weak spots, asks hard judge questions, and tests assumptions.",
       "tone": "direct, skeptical, useful",
-      "color": "#7c3aed"
+      "color": "#7c3aed",
+      "skills": ["pitch-review"],
+      "tools": ["read_project_file", "web_search"]
     }
   ],
   "stages": [
@@ -53,4 +65,3 @@
     "Pitch Prep"
   ]
 }
-

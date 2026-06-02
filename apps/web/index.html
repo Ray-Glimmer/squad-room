@@ -42,6 +42,10 @@
             <textarea name="constraints" placeholder="Deadline, team size, required deliverables, tools, budget..."></textarea>
           </label>
           <label>
+            Project materials
+            <textarea name="projectMaterials" placeholder="Paste contest rules, judging criteria, notes, source excerpts, or existing project context..."></textarea>
+          </label>
+          <label>
             API endpoint
             <input name="apiBase" value="http://localhost:8787" />
           </label>
@@ -67,6 +71,22 @@
         <aside class="squad-panel">
           <h3>Teammates</h3>
           <div id="squadList" class="squad-list"></div>
+          <section class="capability-panel">
+            <h3>Skills</h3>
+            <div id="skillList" class="skill-list"></div>
+          </section>
+          <section class="capability-panel">
+            <h3>Tools</h3>
+            <div class="tool-buttons">
+              <button id="readContextButton" class="ghost-button">Read Context</button>
+              <button id="artifactButton" class="ghost-button">Create Artifact</button>
+              <button id="taskButton" class="ghost-button">Create Tasks</button>
+            </div>
+            <form id="searchToolForm" class="tool-search">
+              <input id="searchToolInput" placeholder="Search request..." />
+              <button type="submit" class="ghost-button">Request</button>
+            </form>
+          </section>
         </aside>
 
         <section class="chat-panel">
@@ -83,6 +103,13 @@
             <span id="usageLine">0 tokens</span>
           </div>
           <div id="outputs" class="outputs"></div>
+          <section class="activity-panel">
+            <div class="activity-header">
+              <h3>Tool Activity</h3>
+              <span id="activityCount">0</span>
+            </div>
+            <div id="activityList" class="activity-list"></div>
+          </section>
           <div class="output-actions">
             <button id="runMeetingButton" class="primary-button">Run Meeting</button>
             <button id="continueButton" class="ghost-button">Next Stage</button>
@@ -94,6 +121,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260602-3" type="module"></script>
+    <script src="./app.js?v=20260602-4" type="module"></script>
   </body>
 </html>

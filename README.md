@@ -90,7 +90,24 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Stream teammate responses as they are generated.
 - Render teammate messages as sanitized Markdown.
 - Generate a structured brief once per stage with a bounded recorder step.
+- Load teammate skills from editable Markdown files.
+- Use visible local-first tools for project context, artifacts, tasks, and approved web-search requests.
 - View extracted outputs: proposal, actions, risks, and judge questions.
+
+## Skills and Tools
+
+Each teammate has an editable Markdown skill under `skills/`. The API injects the matching working method into that teammate's prompt.
+
+The current tool set is intentionally limited:
+
+| Tool | Behavior | Approval |
+| --- | --- | --- |
+| Read Project Context | Reads only the materials pasted into the meeting form. | None |
+| Create Brief Artifact | Converts the current brief into Markdown. | None |
+| Create Tasks | Converts current brief actions into local todo items. | None |
+| Request Web Search | Creates a visible search request. It does not search in the background. | User click |
+
+This first version keeps tool use visible and local-first. It does not read arbitrary files from your machine, run code, or transmit pasted project materials to third-party search engines.
 
 ## GitHub Pages
 
@@ -108,6 +125,7 @@ squad-room/
   docs/           # Product, architecture, deployment, and security notes
   packages/
     shared/       # Shared config reference
+  skills/         # Editable teammate working methods
   .env.example
   SECURITY.md
 ```

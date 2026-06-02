@@ -1,0 +1,17 @@
+{
+  "skills": [
+    { "id": "project-lead", "name": "Project Lead", "owner": "captain" },
+    { "id": "idea-expansion", "name": "Idea Expansion", "owner": "ideator" },
+    { "id": "technical-review", "name": "Technical Review", "owner": "engineer" },
+    { "id": "competitor-research", "name": "Competitor Research", "owner": "strategist" },
+    { "id": "demo-story", "name": "Demo Story", "owner": "designer" },
+    { "id": "pitch-review", "name": "Pitch Review", "owner": "critic" }
+  ],
+  "tools": [
+    { "id": "read_project_file", "name": "Read Project Context", "approval": "none" },
+    { "id": "write_artifact", "name": "Create Brief Artifact", "approval": "none" },
+    { "id": "update_task", "name": "Create Tasks", "approval": "none" },
+    { "id": "web_search", "name": "Request Web Search", "approval": "user" }
+  ]
+}
+
