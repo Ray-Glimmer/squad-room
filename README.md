@@ -107,14 +107,14 @@ Each teammate has an editable Markdown skill under `skills/`. The API injects th
 
 The current tool set is intentionally limited:
 
-| Tool | Behavior | Approval |
+| Tool | Automatic behavior | Approval |
 | --- | --- | --- |
-| Read Project Context | Reads only materials pasted or explicitly imported into the meeting form. | None |
-| Create Brief Artifact | Converts the current brief into Markdown. | None |
-| Create Tasks | Converts current brief actions into local todo items. | None |
-| Request Web Search | Creates a visible search request. It does not search in the background. | User click |
+| Read Project Context | Captain reads explicitly provided materials during Framing. | None |
+| Create Brief Artifact | Captain refreshes a Markdown brief during Convergence and Summary. | None |
+| Create Tasks | Engineer prepares action items during Action Plan and Summary. | None |
+| Request Web Search | Strategist proposes a visible research request during Framing. It does not search in the background. | User click |
 
-This first version keeps tool use visible and local-first. It does not read arbitrary files from your machine, run code, or transmit project materials to third-party search engines.
+Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. External web searches still wait for explicit approval. This first version does not read arbitrary files from your machine, run code, or transmit project materials to third-party search engines.
 
 ## GitHub Pages
 

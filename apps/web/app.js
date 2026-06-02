@@ -26,6 +26,7 @@ let totalTokens = 0;
 let isRunningMeeting = false;
 let currentBrief = {};
 let availableSkills = [];
+let availableTools = [];
 let toolActivities = [];
 let materialFiles = [];
 
@@ -45,11 +46,7 @@ const skillList = document.querySelector("#skillList");
 const outputs = document.querySelector("#outputs");
 const activityCount = document.querySelector("#activityCount");
 const activityList = document.querySelector("#activityList");
-const readContextButton = document.querySelector("#readContextButton");
-const artifactButton = document.querySelector("#artifactButton");
-const taskButton = document.querySelector("#taskButton");
-const searchToolForm = document.querySelector("#searchToolForm");
-const searchToolInput = document.querySelector("#searchToolInput");
+const toolRegistry = document.querySelector("#toolRegistry");
 const materialFileInput = document.querySelector("#materialFileInput");
 const materialFileButton = document.querySelector("#materialFileButton");
 const materialFileList = document.querySelector("#materialFileList");
@@ -61,6 +58,7 @@ const usageLine = document.querySelector("#usageLine");
 meetingForm.elements.apiBase.value = apiBase;
 renderSquad();
 renderSkills();
+renderTools();
 renderOutputs({});
 renderActivities();
 renderMaterialFiles();
@@ -111,26 +109,6 @@ materialFileInput.addEventListener("change", async () => {
   for (const file of files) {
     await importMaterialFile(file);
   }
-});
-
-readContextButton.addEventListener("click", async () => {
-  await runTool("read_project_file", "captain", { projectMaterials: meeting?.projectMaterials || "" });
-});
-
-artifactButton.addEventListener("click", async () => {
-  await runTool("write_artifact", "captain", { brief: currentBrief });
-});
-
-taskButton.addEventListener("click", async () => {
-  await runTool("update_task", "captain", { brief: currentBrief });
-});
-
-searchToolForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const query = searchToolInput.value.trim();
-  if (!query) return;
-  searchToolInput.value = "";
-  await runTool("web_search", "strategist", { query });
 });
 
 continueButton.addEventListener("click", async () => {
@@ -194,6 +172,7 @@ function applyResult(result) {
   renderMessages();
   currentBrief = result.outputs || currentBrief;
   renderOutputs(currentBrief);
+  addToolActivities(result.toolActivities);
 }
 
 function applyUsage(usage = {}) {
@@ -281,7 +260,9 @@ async function refreshConfig() {
   try {
     const config = await getJson("/api/config");
     availableSkills = config.skills || [];
+    availableTools = config.tools || [];
     renderSkills();
+    renderTools();
     statusLine.textContent = `${config.mode} mode - ${config.model}`;
   } catch {
     statusLine.textContent = `API offline - ${apiBase}`;
@@ -360,12 +341,17 @@ function handleStreamEvent(event) {
     renderOutputs(currentBrief);
     return;
   }
+  if (event.type === "tool_activity") {
+    addToolActivities([data]);
+    return;
+  }
   if (event.type === "done") {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
     currentBrief = data.outputs || currentBrief;
     renderOutputs(currentBrief);
+    addToolActivities(data.toolActivities);
     addStageProgressMessage(data.stage);
     return;
   }
@@ -502,9 +488,27 @@ function renderSkills() {
     : '<span class="muted-line">Loading...</span>';
 }
 
-async function runTool(toolId, agentId, payload) {
-  const response = await postJson("/api/tools/execute", { toolId, agentId, payload });
-  toolActivities.unshift(response);
+function renderTools() {
+  toolRegistry.innerHTML = availableTools.length
+    ? availableTools.map((tool) => `
+        <div class="tool-registry-item">
+          <strong>${escapeHtml(tool.name)}</strong>
+          <span>${tool.approval === "user" ? "Auto request · approval" : "Automatic"}</span>
+        </div>
+      `).join("")
+    : '<span class="muted-line">Loading...</span>';
+}
+
+function addToolActivities(activities = []) {
+  for (const activity of activities || []) {
+    if (!activity) continue;
+    const existingIndex = activity.automationKey
+      ? toolActivities.findIndex((item) => item.automationKey === activity.automationKey)
+      : -1;
+    if (existingIndex >= 0) toolActivities.splice(existingIndex, 1);
+    toolActivities.unshift(activity);
+  }
+  toolActivities = toolActivities.slice(0, 20);
   renderActivities();
 }
 
@@ -641,12 +645,30 @@ function renderActivity(activity) {
       </article>
     `;
   }
+  const summary = summarizeToolResult(activity);
   return `
     <article class="activity-item">
-      <strong>${escapeHtml(heading)}</strong>
-      <div class="activity-result">${renderToolResult(activity.result)}</div>
+      <div class="activity-title">
+        <strong>${escapeHtml(heading)}</strong>
+        <span>auto</span>
+      </div>
+      <p>${escapeHtml(summary)}</p>
+      <details>
+        <summary>View result</summary>
+        <div class="activity-result">${renderToolResult(activity.result)}</div>
+      </details>
     </article>
   `;
+}
+
+function summarizeToolResult(activity) {
+  if (activity.toolId === "read_project_file") return "Project context loaded for the squad.";
+  if (activity.toolId === "write_artifact") return "Current brief artifact refreshed.";
+  if (activity.toolId === "update_task") {
+    const count = Array.isArray(activity.result) ? activity.result.length : 0;
+    return `${count} action ${count === 1 ? "item" : "items"} prepared.`;
+  }
+  return "Completed.";
 }
 
 function renderToolResult(result) {

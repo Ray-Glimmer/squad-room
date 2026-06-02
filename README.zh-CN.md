@@ -109,14 +109,14 @@ SQUAD_ROOM_MOCK=false
 
 当前工具集刻意保持克制：
 
-| 工具 | 行为 | 是否需要批准 |
+| 工具 | 自动行为 | 是否需要批准 |
 | --- | --- | --- |
-| Read Project Context | 只读取会议创建表单中粘贴或显式导入的资料。 | 不需要 |
-| Create Brief Artifact | 把当前简报转换为 Markdown 产物。 | 不需要 |
-| Create Tasks | 把当前简报里的行动项转换为本地 todo。 | 不需要 |
-| Request Web Search | 创建可见的搜索请求，不会在后台自行搜索。 | 需要用户点击 |
+| Read Project Context | Captain 在 Framing 阶段读取用户显式提供的资料。 | 不需要 |
+| Create Brief Artifact | Captain 在 Convergence 和 Summary 阶段刷新 Markdown 简报产物。 | 不需要 |
+| Create Tasks | Engineer 在 Action Plan 和 Summary 阶段整理行动项。 | 不需要 |
+| Request Web Search | Strategist 在 Framing 阶段提出可见的研究请求，不会在后台自行搜索。 | 需要用户点击 |
 
-第一版工具坚持可见和本地优先：不会读取你电脑上的任意文件，不会运行代码，也不会把项目资料自动发送给第三方搜索引擎。
+低风险工具会在限定的会议阶段自动执行，并显示在 Tool Activity 中。外部网页搜索仍会等待用户明确批准。第一版工具不会读取你电脑上的任意文件，不会运行代码，也不会把项目资料自动发送给第三方搜索引擎。
 
 ## GitHub Pages
 

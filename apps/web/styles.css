@@ -206,7 +206,16 @@ textarea:focus {
 .squad-panel,
 .output-panel {
   padding: 16px;
+}
+
+.squad-panel {
   overflow: auto;
+}
+
+.output-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
 }
 
 .squad-list {
@@ -264,8 +273,7 @@ textarea:focus {
   border-top: 1px solid var(--line);
 }
 
-.skill-list,
-.tool-buttons {
+.skill-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -282,25 +290,31 @@ textarea:focus {
   background: #f8fafc;
 }
 
-.tool-buttons .ghost-button,
-.tool-search .ghost-button,
 .activity-item .ghost-button {
   min-height: 32px;
   padding: 0 10px;
   font-size: 12px;
 }
 
-.tool-search {
+.tool-registry {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
-.tool-search input {
-  min-width: 0;
+.tool-registry-item {
+  display: grid;
+  gap: 2px;
   padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
   font-size: 12px;
+}
+
+.tool-registry-item span {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .member {
@@ -544,8 +558,11 @@ textarea:focus {
 
 .outputs {
   display: grid;
+  align-content: start;
   gap: 14px;
   margin: 16px 0;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .output-block {
@@ -597,7 +614,8 @@ textarea:focus {
 }
 
 .activity-panel {
-  margin-top: 18px;
+  min-height: 0;
+  margin-top: 4px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
@@ -618,7 +636,10 @@ textarea:focus {
 .activity-list {
   display: grid;
   gap: 8px;
+  max-height: 220px;
   margin-top: 10px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .activity-item {
@@ -644,10 +665,39 @@ textarea:focus {
   margin: 6px 0;
 }
 
+.activity-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.activity-title span {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.activity-item details {
+  margin-top: 6px;
+}
+
+.activity-item summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .activity-result {
   max-height: 180px;
   margin-top: 6px;
   overflow: auto;
+}
+
+.output-actions {
+  padding-top: 12px;
 }
 
 .activity-result ul {

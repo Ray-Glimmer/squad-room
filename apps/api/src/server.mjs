@@ -26,10 +26,10 @@ const skills = [
 ];
 
 const tools = [
-  { id: "read_project_file", name: "Read Project Context", approval: "none", agents: ["captain", "engineer", "strategist", "critic"] },
-  { id: "write_artifact", name: "Create Brief Artifact", approval: "none", agents: ["captain", "designer"] },
-  { id: "update_task", name: "Create Tasks", approval: "none", agents: ["captain", "engineer"] },
-  { id: "web_search", name: "Request Web Search", approval: "user", agents: ["ideator", "engineer", "strategist", "critic"] }
+  { id: "read_project_file", name: "Read Project Context", approval: "none", trigger: "automatic", agents: ["captain", "engineer", "strategist", "critic"] },
+  { id: "write_artifact", name: "Create Brief Artifact", approval: "none", trigger: "automatic", agents: ["captain", "designer"] },
+  { id: "update_task", name: "Create Tasks", approval: "none", trigger: "automatic", agents: ["captain", "engineer"] },
+  { id: "web_search", name: "Request Web Search", approval: "user", trigger: "automatic_request", agents: ["ideator", "engineer", "strategist", "critic"] }
 ];
 
 const squad = [
@@ -243,12 +243,14 @@ async function runStage({ meeting, stageIndex, history }) {
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage);
+  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
     stageIndex,
     messages,
     outputs: brief.outputs,
+    toolActivities,
     usage
   };
 }
@@ -271,11 +273,14 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
+    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
       stage,
       stageIndex,
       outputs: brief.outputs,
+      toolActivities,
       usage
     });
   } catch (error) {
@@ -314,12 +319,14 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage);
+  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
     stageIndex,
     messages,
     outputs: brief.outputs,
+    toolActivities,
     usage
   };
 }
@@ -358,11 +365,14 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
+    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
       stage,
       stageIndex,
       outputs: brief.outputs,
+      toolActivities,
       usage
     });
   } catch (error) {
@@ -395,12 +405,14 @@ async function summarize({ meeting, history }) {
   const message = makeMessage(member, response.content, stage);
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, message] });
   addUsage(response.usage, brief.usage);
+  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
     stageIndex: stages.length - 1,
     messages: [message],
     outputs: brief.outputs,
+    toolActivities,
     usage: response.usage
   };
 }
@@ -424,10 +436,13 @@ async function streamSummaryResponse(res, { meeting, history }) {
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message] });
     addUsage(response.usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
+    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
     sendEvent(res, "done", {
       stage,
       stageIndex,
       outputs: brief.outputs,
+      toolActivities,
       usage: response.usage
     });
   } catch (error) {
@@ -865,6 +880,40 @@ function loadSkill(id, name, owner, relativePath) {
   };
 }
 
+function runAutomaticTools({ meeting, stage, brief }) {
+  const calls = [];
+  const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
+
+  if (stage === "Framing") {
+    if (hasProjectMaterials) {
+      calls.push({
+        toolId: "read_project_file",
+        agentId: "captain",
+        payload: { projectMaterials: meeting.projectMaterials }
+      });
+    }
+    calls.push({
+      toolId: "web_search",
+      agentId: "strategist",
+      payload: { query: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria` }
+    });
+  }
+
+  if (stage === "Convergence" || stage === "Summary") {
+    calls.push({ toolId: "write_artifact", agentId: "captain", payload: { brief } });
+  }
+
+  if (stage === "Action Plan" || stage === "Summary") {
+    calls.push({ toolId: "update_task", agentId: "engineer", payload: { brief } });
+  }
+
+  return calls.map((call) => executeTool({
+    ...call,
+    source: "automatic",
+    automationKey: `${stage}:${call.toolId}`
+  }));
+}
+
 function executeTool(body = {}) {
   const toolId = String(body.toolId || "");
   const agentId = String(body.agentId || "captain");
@@ -878,6 +927,8 @@ function executeTool(body = {}) {
     toolId,
     toolName: tool.name,
     agentId,
+    source: String(body.source || "manual"),
+    automationKey: String(body.automationKey || ""),
     createdAt: new Date().toISOString()
   };
 
