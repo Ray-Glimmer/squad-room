@@ -237,6 +237,12 @@ textarea:focus {
   border-color: var(--line);
 }
 
+.pause-button.active {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
 .room-view {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 320px;

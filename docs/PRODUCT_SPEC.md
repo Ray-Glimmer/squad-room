@@ -17,8 +17,9 @@ Early target users are students, independent makers, competition participants, a
 1. User creates a meeting with a topic, contest type, goal, and constraints.
 2. The squad opens with a structured first round.
 3. The user continues the meeting, interrupts, or asks for a specific teammate.
-4. The squad discusses, challenges, and refines the idea.
-5. The room produces a brief: proposal, actions, risks, and judge questions.
+4. The user can pause an active request and resume from the last completed stage.
+5. The squad discusses, challenges, and refines the idea.
+6. The room produces a brief: proposal, actions, risks, and judge questions.
 
 ## Default Squad
 

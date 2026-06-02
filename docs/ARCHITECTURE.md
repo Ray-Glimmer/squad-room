@@ -35,6 +35,7 @@ apps/api
 - Render squad members, messages, and outputs.
 - Render streamed messages as sanitized Markdown.
 - Let the user continue, interrupt, and summarize.
+- Abort an active stream when paused and retry the interrupted step on resume.
 - Store only non-secret meeting state.
 - Show tool activity and approval requests.
 

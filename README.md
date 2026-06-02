@@ -85,6 +85,7 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
   - Critic
 - Continue the meeting through staged discussion.
 - Run the meeting through all fixed stages and then generate a summary.
+- Pause an active meeting and resume from the last completed stage.
 - Ask the squad a follow-up.
 - Generate a final brief.
 - Stream teammate responses as they are generated.

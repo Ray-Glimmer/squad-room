@@ -257,6 +257,7 @@ async function runStage({ meeting, stageIndex, history }) {
 
 async function streamStageResponse(res, { meeting, stageIndex, history }) {
   startEventStream(res);
+  const signal = createResponseAbortSignal(res);
   try {
     const stage = stages[stageIndex] || stages[0];
     const speakerIds = stageSpeakers[stage] || ["captain"];
@@ -266,14 +267,14 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
 
     for (const speakerId of speakerIds) {
       const member = squad.find((item) => item.id === speakerId);
-      const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages] });
+      const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal });
       messages.push(response.message);
       addUsage(usage, response.usage);
     }
-    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
@@ -284,9 +285,9 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
       usage
     });
   } catch (error) {
-    sendEvent(res, "error", { message: error.message });
+    if (error.name !== "AbortError") sendEvent(res, "error", { message: error.message });
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 }
 
@@ -333,6 +334,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
 
 async function streamUserResponse(res, { meeting, stageIndex, history, userMessage }) {
   startEventStream(res);
+  const signal = createResponseAbortSignal(res);
   try {
     const stage = stages[stageIndex] || stages[0];
     const userEntry = {
@@ -357,15 +359,16 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
         member,
         stage,
         history: [...history, ...messages],
-        userMessage
+        userMessage,
+        signal
       });
       messages.push(response.message);
       addUsage(usage, response.usage);
     }
-    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
@@ -376,9 +379,9 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
       usage
     });
   } catch (error) {
-    sendEvent(res, "error", { message: error.message });
+    if (error.name !== "AbortError") sendEvent(res, "error", { message: error.message });
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 }
 
@@ -419,6 +422,7 @@ async function summarize({ meeting, history }) {
 
 async function streamSummaryResponse(res, { meeting, history }) {
   startEventStream(res);
+  const signal = createResponseAbortSignal(res);
   try {
     const member = squad.find((item) => item.id === "captain");
     const stage = "Summary";
@@ -431,12 +435,13 @@ async function streamSummaryResponse(res, { meeting, history }) {
       member,
       stage,
       history,
-      overrideUser: `${prompt}\n\nConversation:\n${historyToText(history)}`
+      overrideUser: `${prompt}\n\nConversation:\n${historyToText(history)}`,
+      signal
     });
-    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message] });
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message], signal });
     addUsage(response.usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
     sendEvent(res, "done", {
       stage,
@@ -446,9 +451,9 @@ async function streamSummaryResponse(res, { meeting, history }) {
       usage: response.usage
     });
   } catch (error) {
-    sendEvent(res, "error", { message: error.message });
+    if (error.name !== "AbortError") sendEvent(res, "error", { message: error.message });
   } finally {
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 }
 
@@ -492,7 +497,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
   ].join("\n");
 }
 
-async function callProvider({ system, user }) {
+async function callProvider({ system, user, signal }) {
   if (!USE_PROVIDER) {
     return {
       content: "Mock response.",
@@ -513,7 +518,8 @@ async function callProvider({ system, user }) {
         { role: "system", content: system },
         { role: "user", content: user }
       ]
-    })
+    }),
+    signal
   });
 
   if (!response.ok) {
@@ -528,7 +534,7 @@ async function callProvider({ system, user }) {
   };
 }
 
-async function streamMember({ res, meeting, member, stage, history, userMessage = "", overrideUser = "" }) {
+async function streamMember({ res, meeting, member, stage, history, userMessage = "", overrideUser = "", signal }) {
   const id = randomUUID();
   let content = "";
   let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
@@ -542,10 +548,12 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
     createdAt: new Date().toISOString()
   };
   sendEvent(res, "message_start", { message: started });
+  signal?.throwIfAborted();
 
   if (!USE_PROVIDER) {
     const mock = mockMemberReply({ meeting, member, stage, userMessage });
     for (const token of chunkText(mock.content)) {
+      signal?.throwIfAborted();
       content += token;
       sendEvent(res, "token", { id, token });
       await sleep(24);
@@ -556,6 +564,7 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
     const response = await callProviderStream({
       system: buildSystem(member, stage),
       user,
+      signal,
       onToken: (token) => {
         content += token;
         sendEvent(res, "token", { id, token });
@@ -569,7 +578,7 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
   return { message, usage };
 }
 
-async function callProviderStream({ system, user, onToken }) {
+async function callProviderStream({ system, user, onToken, signal }) {
   const response = await fetch(`${OPENAI_BASE_URL.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
@@ -584,7 +593,8 @@ async function callProviderStream({ system, user, onToken }) {
         { role: "system", content: system },
         { role: "user", content: user }
       ]
-    })
+    }),
+    signal
   });
 
   if (!response.ok) {
@@ -617,7 +627,7 @@ async function callProviderStream({ system, user, onToken }) {
   return { usage };
 }
 
-async function buildStructuredBrief({ meeting, stage, history }) {
+async function buildStructuredBrief({ meeting, stage, history, signal }) {
   if (!USE_PROVIDER) {
     return {
       outputs: extractOutputs(history),
@@ -649,7 +659,8 @@ async function buildStructuredBrief({ meeting, stage, history }) {
       "",
       "Discussion:",
       historyToText(history).slice(-14000)
-    ].join("\n")
+    ].join("\n"),
+    signal
   });
 
   return {
@@ -883,7 +894,7 @@ function loadSkill(id, name, owner, relativePath) {
   };
 }
 
-async function runAutomaticTools({ meeting, stage, brief }) {
+async function runAutomaticTools({ meeting, stage, brief, signal }) {
   const calls = [];
   const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
   const researchQueries = {
@@ -926,10 +937,10 @@ async function runAutomaticTools({ meeting, stage, brief }) {
     ...call,
     source: "automatic",
     automationKey: `${stage}:${call.toolId}`
-  })));
+  }, { signal })));
 }
 
-async function executeTool(body = {}) {
+async function executeTool(body = {}, { signal } = {}) {
   const toolId = String(body.toolId || "");
   const agentId = String(body.agentId || "captain");
   const tool = tools.find((item) => item.id === toolId);
@@ -981,7 +992,7 @@ async function executeTool(body = {}) {
     if (!query) return { ok: false, error: "Search query is required." };
     if (payload.approved === true) {
       try {
-        const result = await searchWeb(query);
+        const result = await searchWeb(query, signal);
         return {
           ...base,
           status: "completed",
@@ -1008,13 +1019,13 @@ async function executeTool(body = {}) {
   return { ok: false, error: "Tool is not implemented." };
 }
 
-async function searchWeb(query) {
+async function searchWeb(query, signal) {
   const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
     headers: {
       Accept: "text/html",
       "User-Agent": "Mozilla/5.0 SquadRoom/0.1"
     },
-    signal: AbortSignal.timeout(12000)
+    signal: AbortSignal.any([AbortSignal.timeout(12000), signal].filter(Boolean))
   });
   if (!response.ok) throw new Error(`Search provider returned ${response.status}.`);
   const html = await response.text();
@@ -1157,7 +1168,16 @@ function startEventStream(res) {
   });
 }
 
+function createResponseAbortSignal(res) {
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+  return controller.signal;
+}
+
 function sendEvent(res, event, payload) {
+  if (res.destroyed || res.writableEnded) return;
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }

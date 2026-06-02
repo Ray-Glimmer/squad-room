@@ -24,6 +24,11 @@ let history = [];
 let stageIndex = 0;
 let totalTokens = 0;
 let isRunningMeeting = false;
+let isPaused = false;
+let resumeAutomaticRun = false;
+let activeStreamController = null;
+let pausedStreamRequest = null;
+let streamEpoch = 0;
 let currentBrief = {};
 let availableSkills = [];
 let availableTools = [];
@@ -38,6 +43,7 @@ const newMeetingButton = document.querySelector("#newMeetingButton");
 const runMeetingButton = document.querySelector("#runMeetingButton");
 const continueButton = document.querySelector("#continueButton");
 const summaryButton = document.querySelector("#summaryButton");
+const pauseButton = document.querySelector("#pauseButton");
 const messageForm = document.querySelector("#messageForm");
 const messageInput = document.querySelector("#messageInput");
 const messageList = document.querySelector("#messageList");
@@ -92,6 +98,8 @@ loadDemoButton.addEventListener("click", () => {
 });
 
 newMeetingButton.addEventListener("click", () => {
+  pauseMeeting({ announce: false });
+  streamEpoch += 1;
   meeting = null;
   history = [];
   stageIndex = 0;
@@ -99,9 +107,37 @@ newMeetingButton.addEventListener("click", () => {
   currentBrief = {};
   toolActivities = [];
   materialFiles = [];
+  isPaused = false;
+  resumeAutomaticRun = false;
+  pausedStreamRequest = null;
+  renderPauseState();
   renderMaterialFiles();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
+});
+
+pauseButton.addEventListener("click", async () => {
+  if (!isPaused) {
+    pauseMeeting();
+    return;
+  }
+  isPaused = false;
+  renderPauseState();
+  addSystemMessage("Meeting resumed.", "Control");
+  if (resumeAutomaticRun) {
+    resumeAutomaticRun = false;
+    await runMeeting();
+    return;
+  }
+  if (pausedStreamRequest) {
+    const request = pausedStreamRequest;
+    pausedStreamRequest = null;
+    try {
+      await postStream(request.path, request.payload);
+    } catch (error) {
+      if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
+    }
+  }
 });
 
 autoResearchToggle.addEventListener("change", () => {
@@ -127,25 +163,18 @@ materialFileInput.addEventListener("change", async () => {
 });
 
 continueButton.addEventListener("click", async () => {
+  if (isPaused) return;
   await withBusy(continueButton, "Thinking", async () => {
     await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
   });
 });
 
 runMeetingButton.addEventListener("click", async () => {
-  if (isRunningMeeting) return;
-  isRunningMeeting = true;
-  await withBusy(runMeetingButton, "Running", async () => {
-    while (stageIndex < stages.length - 1) {
-      await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
-    }
-    await postStream("/api/meeting/summary/stream", { meeting, history });
-    addSystemMessage("Meeting complete. The squad has reached a final brief for this run.", "Complete");
-  });
-  isRunningMeeting = false;
+  await runMeeting();
 });
 
 summaryButton.addEventListener("click", async () => {
+  if (isPaused) return;
   await withBusy(summaryButton, "Summarizing", async () => {
     await postStream("/api/meeting/summary/stream", { meeting, history });
   });
@@ -154,7 +183,7 @@ summaryButton.addEventListener("click", async () => {
 messageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = messageInput.value.trim();
-  if (!message) return;
+  if (!message || isPaused) return;
   messageInput.value = "";
   await withBusy(messageForm.querySelector("button"), "Sending", async () => {
     await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
@@ -162,6 +191,7 @@ messageForm.addEventListener("submit", async (event) => {
 });
 
 async function startMeeting() {
+  streamEpoch += 1;
   setupView.classList.add("hidden");
   roomView.classList.remove("hidden");
   roomTitle.textContent = meeting.topic || "Squad Room";
@@ -170,6 +200,10 @@ async function startMeeting() {
   totalTokens = 0;
   currentBrief = {};
   toolActivities = [];
+  isPaused = false;
+  resumeAutomaticRun = false;
+  pausedStreamRequest = null;
+  renderPauseState();
   autoResearchToggle.checked = Boolean(meeting.autoWebResearch);
   renderMessages();
   renderOutputs({});
@@ -178,6 +212,39 @@ async function startMeeting() {
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
     await postStream("/api/meeting/start/stream", meeting);
   });
+}
+
+async function runMeeting() {
+  if (isRunningMeeting || isPaused) return;
+  isRunningMeeting = true;
+  await withBusy(runMeetingButton, "Running", async () => {
+    while (!isPaused && stageIndex < stages.length - 1) {
+      await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
+    }
+    if (isPaused) return;
+    await postStream("/api/meeting/summary/stream", { meeting, history });
+    if (!isPaused) addSystemMessage("Meeting complete. The squad has reached a final brief for this run.", "Complete");
+  });
+  isRunningMeeting = false;
+}
+
+function pauseMeeting({ announce = true } = {}) {
+  if (isPaused && !activeStreamController) return;
+  resumeAutomaticRun = isRunningMeeting;
+  isPaused = true;
+  activeStreamController?.abort();
+  renderPauseState();
+  if (announce) addSystemMessage("Meeting paused. The current request was stopped; resume to continue from the last completed stage.", "Control");
+}
+
+function renderPauseState() {
+  pauseButton.textContent = isPaused ? "Resume" : "Pause";
+  pauseButton.classList.toggle("active", isPaused);
+  runMeetingButton.disabled = isPaused;
+  continueButton.disabled = isPaused;
+  summaryButton.disabled = isPaused;
+  messageInput.disabled = isPaused;
+  messageForm.querySelector("button").disabled = isPaused;
 }
 
 function applyResult(result) {
@@ -302,33 +369,57 @@ async function postJson(path, payload) {
 }
 
 async function postStream(path, payload) {
-  const response = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok || !response.body) {
-    if (response.status === 404 && path.endsWith("/stream")) {
-      applyResult(await postJson(path.replace(/\/stream$/, ""), payload));
-      return;
+  const requestEpoch = streamEpoch;
+  const previousStageIndex = stageIndex;
+  const previousStageLabel = stageBadge.textContent;
+  const previousBrief = currentBrief;
+  const previousMessageIds = new Set(history.map((message) => message.id));
+  const controller = new AbortController();
+  activeStreamController = controller;
+  try {
+    const response = await fetch(`${apiBase}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok || !response.body) {
+      if (response.status === 404 && path.endsWith("/stream")) {
+        applyResult(await postJson(path.replace(/\/stream$/, ""), payload));
+        return;
+      }
+      throw new Error((await response.text()) || `Request failed: ${response.status}`);
     }
-    throw new Error((await response.text()) || `Request failed: ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() || "";
+      for (const block of blocks) handleStreamEvent(parseEventBlock(block));
+    }
+
+    if (buffer.trim()) handleStreamEvent(parseEventBlock(buffer));
+    if (requestEpoch === streamEpoch) pausedStreamRequest = null;
+  } catch (error) {
+    if (error.name === "AbortError" && requestEpoch === streamEpoch) {
+      stageIndex = previousStageIndex;
+      stageBadge.textContent = previousStageLabel;
+      currentBrief = previousBrief;
+      history = history.filter((message) => previousMessageIds.has(message.id));
+      renderMessages();
+      renderOutputs(currentBrief);
+      pausedStreamRequest = { path, payload };
+    }
+    throw error;
+  } finally {
+    if (activeStreamController === controller) activeStreamController = null;
   }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split("\n\n");
-    buffer = blocks.pop() || "";
-    for (const block of blocks) handleStreamEvent(parseEventBlock(block));
-  }
-
-  if (buffer.trim()) handleStreamEvent(parseEventBlock(buffer));
 }
 
 function parseEventBlock(block) {
@@ -475,10 +566,11 @@ async function withBusy(button, label, task) {
   try {
     await task();
   } catch (error) {
-    addSystemMessage(error.message || "Something went wrong.", "Error");
+    if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
   } finally {
     button.disabled = false;
     button.textContent = original;
+    renderPauseState();
   }
 }
 
@@ -521,9 +613,10 @@ function addToolActivities(activities = []) {
     const existingIndex = activity.automationKey
       ? toolActivities.findIndex((item) => item.automationKey === activity.automationKey)
       : -1;
+    const existing = existingIndex >= 0 ? toolActivities[existingIndex] : null;
     if (existingIndex >= 0) toolActivities.splice(existingIndex, 1);
     toolActivities.unshift(activity);
-    appendResearchContext(activity);
+    if (!existing || existing.status !== "completed") appendResearchContext(activity);
   }
   toolActivities = toolActivities.slice(0, 20);
   renderActivities();
