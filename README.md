@@ -88,6 +88,9 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Pause an active meeting, preserve interrupted streamed output, queue notes while paused, and process those notes before resuming the discussion.
 - Queue user messages while teammates are speaking, with an optional immediate interrupt.
 - Let silent background research continue alongside the visible discussion.
+- Review role-specific skills and tool permissions for each teammate.
+- Track assigned work items, owners, and deliverable types in Task Center.
+- Inspect token usage by agent and completed tool runs.
 - Ask the squad a follow-up.
 - Generate a final brief.
 - Stream teammate responses as they are generated.
@@ -106,7 +109,7 @@ Files are parsed locally in your browser. The files themselves are not uploaded 
 
 ## Skills and Tools
 
-Each teammate has an editable Markdown skill under `skills/`. The API injects the matching working method into that teammate's prompt.
+Each teammate has editable Markdown skills under `skills/`. The API injects the matching working methods into that teammate's prompt.
 
 The current tool set is intentionally limited:
 
@@ -117,7 +120,7 @@ The current tool set is intentionally limited:
 | Create Tasks | Engineer prepares action items during Action Plan and Summary. | None |
 | Web Research | Agents propose stage-relevant research requests. By default each query waits for approval; enable Automatic web research to let agents send queries without asking each time. Results are added to shared context. | Optional user click |
 
-Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. Automatic web research is off by default and can be toggled when creating a meeting or from the room header. When enabled, agents may send visible search queries without per-query approval. Only search queries are sent to the search provider; project materials are not transmitted. This first version does not read arbitrary files from your machine or run code.
+Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. Task Center turns generated action items into visible assignments with an owner and deliverable type. Automatic web research is off by default and can be toggled when creating a meeting or from the room header. When enabled, agents may send visible search queries without per-query approval. Only search queries are sent to the search provider; project materials are not transmitted. This version does not read arbitrary files from your machine or run code.
 
 ## GitHub Pages
 

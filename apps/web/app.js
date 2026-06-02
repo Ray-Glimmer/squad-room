@@ -23,6 +23,7 @@ let meeting = null;
 let history = [];
 let stageIndex = 0;
 let totalTokens = 0;
+let usageByAgent = {};
 let isRunningMeeting = false;
 let isPaused = false;
 let resumeAutomaticRun = false;
@@ -37,6 +38,8 @@ let availableSkills = [];
 let availableTools = [];
 let toolActivities = [];
 let backgroundTasks = [];
+let workItems = [];
+let squadCapabilities = [];
 let materialFiles = [];
 
 const setupView = document.querySelector("#setupView");
@@ -61,6 +64,9 @@ const activityCount = document.querySelector("#activityCount");
 const activityList = document.querySelector("#activityList");
 const backgroundTaskCount = document.querySelector("#backgroundTaskCount");
 const backgroundTaskList = document.querySelector("#backgroundTaskList");
+const workItemCount = document.querySelector("#workItemCount");
+const workItemList = document.querySelector("#workItemList");
+const usageBreakdown = document.querySelector("#usageBreakdown");
 const toolRegistry = document.querySelector("#toolRegistry");
 const materialFileInput = document.querySelector("#materialFileInput");
 const materialFileButton = document.querySelector("#materialFileButton");
@@ -78,6 +84,8 @@ renderTools();
 renderOutputs({});
 renderActivities();
 renderBackgroundTasks();
+renderWorkItems();
+renderUsageBreakdown();
 renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
@@ -115,9 +123,11 @@ newMeetingButton.addEventListener("click", () => {
   history = [];
   stageIndex = 0;
   totalTokens = 0;
+  usageByAgent = {};
   currentBrief = {};
   toolActivities = [];
   backgroundTasks = [];
+  workItems = [];
   pendingUserMessages = [];
   materialFiles = [];
   isPaused = false;
@@ -126,6 +136,8 @@ newMeetingButton.addEventListener("click", () => {
   renderPauseState();
   renderMaterialFiles();
   renderBackgroundTasks();
+  renderWorkItems();
+  renderUsageBreakdown();
   renderInterruptionQueue();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
@@ -225,9 +237,11 @@ async function startMeeting() {
   history = [];
   stageIndex = 0;
   totalTokens = 0;
+  usageByAgent = {};
   currentBrief = {};
   toolActivities = [];
   backgroundTasks = [];
+  workItems = [];
   pendingUserMessages = [];
   isPaused = false;
   resumeAutomaticRun = false;
@@ -238,6 +252,8 @@ async function startMeeting() {
   renderOutputs({});
   renderActivities();
   renderBackgroundTasks();
+  renderWorkItems();
+  renderUsageBreakdown();
   renderInterruptionQueue();
 
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
@@ -329,20 +345,36 @@ function applyResult(result) {
 
 function applyUsage(usage = {}) {
   totalTokens += usage.totalTokens || 0;
+  for (const [agentId, agentUsage] of Object.entries(usage.byAgent || {})) {
+    usageByAgent[agentId] ||= { totalTokens: 0 };
+    usageByAgent[agentId].totalTokens += agentUsage.totalTokens || 0;
+  }
   usageLine.textContent = `${totalTokens.toLocaleString()} tokens`;
+  renderUsageBreakdown();
 }
 
 function renderSquad() {
+  const capabilities = new Map(squadCapabilities.map((member) => [member.id, member]));
   squadList.innerHTML = members
-    .map((member) => `
+    .map((member) => {
+      const capability = capabilities.get(member.id) || {};
+      const skillNames = (capability.skills || []).map((skill) => skill.name);
+      const toolNames = (capability.tools || []).map((tool) => tool.name);
+      return `
       <article class="member">
         <span class="member-dot" style="background:${member.color}"></span>
         <div>
           <strong>${escapeHtml(member.name)}</strong>
           <span>${escapeHtml(member.role)}</span>
+          <details class="member-capabilities">
+            <summary>${skillNames.length} skill · ${toolNames.length} tools</summary>
+            <p><b>Skill</b> ${escapeHtml(skillNames.join(", ") || "General reasoning")}</p>
+            <p><b>Tools</b> ${escapeHtml(toolNames.join(", ") || "No assigned tools")}</p>
+          </details>
         </div>
       </article>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -414,6 +446,8 @@ async function refreshConfig() {
     const config = await getJson("/api/config");
     availableSkills = config.skills || [];
     availableTools = config.tools || [];
+    squadCapabilities = config.squad || [];
+    renderSquad();
     renderSkills();
     renderTools();
     statusLine.textContent = `${config.mode} mode - ${config.model}`;
@@ -716,9 +750,11 @@ function addToolActivities(activities = []) {
     if (existingIndex >= 0) toolActivities.splice(existingIndex, 1);
     toolActivities.unshift(activity);
     if (!existing || existing.status !== "completed") appendResearchContext(activity);
+    if (activity.toolId === "update_task" && activity.status === "completed") addWorkItems(activity.result);
   }
   toolActivities = toolActivities.slice(0, 20);
   renderActivities();
+  renderUsageBreakdown();
 }
 
 function renderActivities() {
@@ -750,6 +786,53 @@ function renderBackgroundTasks() {
         </div>
       `).join("")
     : '<p class="muted-line">No background tasks yet.</p>';
+}
+
+function addWorkItems(items = []) {
+  for (const item of items || []) {
+    if (!item?.id) continue;
+    const existingIndex = workItems.findIndex((workItem) => workItem.id === item.id);
+    if (existingIndex >= 0) workItems.splice(existingIndex, 1);
+    workItems.unshift(item);
+  }
+  workItems = workItems.slice(0, 16);
+  renderWorkItems();
+}
+
+function renderWorkItems() {
+  workItemCount.textContent = String(workItems.length);
+  workItemList.innerHTML = workItems.length
+    ? workItems.map((item) => `
+        <article class="work-item">
+          <div>
+            <strong>${escapeHtml(item.title || "Untitled task")}</strong>
+            <span>${escapeHtml(item.ownerAgent || "captain")} · ${escapeHtml(item.deliverable || "action")}</span>
+          </div>
+          <b>${escapeHtml(formatTaskStatus(item.status))}</b>
+        </article>
+      `).join("")
+    : '<p class="muted-line">Tasks appear after the squad turns decisions into action.</p>';
+}
+
+function renderUsageBreakdown() {
+  const agentRows = Object.entries(usageByAgent)
+    .sort(([, left], [, right]) => (right.totalTokens || 0) - (left.totalTokens || 0))
+    .map(([agentId, usage]) => `<li><span>${escapeHtml(agentId)}</span><b>${(usage.totalTokens || 0).toLocaleString()} tokens</b></li>`)
+    .join("");
+  const toolCounts = new Map();
+  for (const activity of toolActivities) {
+    if (activity.status !== "completed") continue;
+    toolCounts.set(activity.toolName, (toolCounts.get(activity.toolName) || 0) + 1);
+  }
+  const toolRows = [...toolCounts.entries()]
+    .map(([name, count]) => `<li><span>${escapeHtml(name)}</span><b>${count} run${count === 1 ? "" : "s"}</b></li>`)
+    .join("");
+  usageBreakdown.innerHTML = `
+    <h4>Agents</h4>
+    <ul>${agentRows || "<li><span>No model usage yet.</span></li>"}</ul>
+    <h4>Tools</h4>
+    <ul>${toolRows || "<li><span>No tool usage yet.</span></li>"}</ul>
+  `;
 }
 
 function formatTaskStatus(status) {

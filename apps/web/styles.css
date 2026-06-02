@@ -296,7 +296,7 @@ textarea:focus {
 
 .output-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto;
   overflow: hidden;
 }
 
@@ -460,6 +460,27 @@ textarea:focus {
   max-width: none;
   background: #f1f5f9;
   color: #334155;
+}
+
+.member-capabilities {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.member-capabilities summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.member-capabilities p {
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+.member-capabilities b {
+  color: var(--text);
 }
 
 .message.interrupted {
@@ -741,6 +762,44 @@ textarea:focus {
   border-top: 1px solid var(--line);
 }
 
+.task-panel {
+  min-height: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.work-item-list {
+  display: grid;
+  gap: 6px;
+  max-height: 154px;
+  margin-top: 8px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.work-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  font-size: 11px;
+}
+
+.work-item span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.work-item b {
+  color: var(--cyan);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 .background-task-list {
   display: grid;
   gap: 6px;
@@ -860,6 +919,45 @@ textarea:focus {
 
 .output-actions {
   padding-top: 12px;
+}
+
+.usage-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.usage-panel summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.usage-breakdown {
+  max-height: 170px;
+  overflow: auto;
+}
+
+.usage-breakdown h4 {
+  margin: 10px 0 4px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.usage-breakdown ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usage-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .activity-result ul {

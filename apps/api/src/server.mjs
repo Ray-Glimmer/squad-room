@@ -18,18 +18,24 @@ const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== 
 
 const skills = [
   loadSkill("project-lead", "Project Lead", "captain", "skills/captain/project-lead.md"),
+  loadSkill("task-orchestration", "Task Orchestration", "captain", "skills/captain/task-orchestration.md"),
   loadSkill("idea-expansion", "Idea Expansion", "ideator", "skills/ideator/idea-expansion.md"),
+  loadSkill("concept-testing", "Concept Testing", "ideator", "skills/ideator/concept-testing.md"),
   loadSkill("technical-review", "Technical Review", "engineer", "skills/engineer/technical-review.md"),
+  loadSkill("delivery-planning", "Delivery Planning", "engineer", "skills/engineer/delivery-planning.md"),
   loadSkill("competitor-research", "Competitor Research", "strategist", "skills/strategist/competitor-research.md"),
+  loadSkill("market-validation", "Market Validation", "strategist", "skills/strategist/market-validation.md"),
   loadSkill("demo-story", "Demo Story", "designer", "skills/designer/demo-story.md"),
-  loadSkill("pitch-review", "Pitch Review", "critic", "skills/critic/pitch-review.md")
+  loadSkill("experience-mapping", "Experience Mapping", "designer", "skills/designer/experience-mapping.md"),
+  loadSkill("pitch-review", "Pitch Review", "critic", "skills/critic/pitch-review.md"),
+  loadSkill("assumption-audit", "Assumption Audit", "critic", "skills/critic/assumption-audit.md")
 ];
 
 const tools = [
-  { id: "read_project_file", name: "Read Project Context", approval: "none", trigger: "automatic", agents: ["captain", "engineer", "strategist", "critic"] },
-  { id: "write_artifact", name: "Create Brief Artifact", approval: "none", trigger: "automatic", agents: ["captain", "designer"] },
-  { id: "update_task", name: "Create Tasks", approval: "none", trigger: "automatic", agents: ["captain", "engineer"] },
-  { id: "web_search", name: "Web Research", approval: "user", trigger: "automatic_request", agents: ["ideator", "engineer", "strategist", "critic"] }
+  { id: "read_project_file", name: "Read Project Context", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "engineer", "strategist", "critic"] },
+  { id: "write_artifact", name: "Create Brief Artifact", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "designer"] },
+  { id: "update_task", name: "Create Tasks", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "engineer"] },
+  { id: "web_search", name: "Web Research", approval: "user", trigger: "automatic_request", risk: "external", agents: ["ideator", "engineer", "strategist", "critic"] }
 ];
 
 const squad = [
@@ -132,7 +138,11 @@ const server = createServer(async (req, res) => {
         mode: USE_PROVIDER ? "provider" : "mock",
         model: USE_PROVIDER ? OPENAI_MODEL : "mock-squad",
         hasProviderKey: Boolean(OPENAI_API_KEY),
-        squad,
+        squad: squad.map((member) => ({
+          ...member,
+          skills: skills.filter((skill) => skill.owner === member.id).map(({ content, ...skill }) => skill),
+          tools: tools.filter((tool) => tool.agents.includes(member.id))
+        })),
         stages,
         skills: skills.map(({ content, ...skill }) => skill),
         tools
@@ -233,16 +243,16 @@ async function runStage({ meeting, stageIndex, history }) {
   const stage = stages[stageIndex] || stages[0];
   const speakerIds = stageSpeakers[stage] || ["captain"];
   const messages = [];
-  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const usage = createUsage();
 
   for (const speakerId of speakerIds) {
     const member = squad.find((item) => item.id === speakerId);
     const response = await askMember({ meeting, member, stage, history: [...history, ...messages] });
     messages.push(makeMessage(member, response.content, stage));
-    addUsage(usage, response.usage);
+    addUsage(usage, response.usage, member.id);
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
-  addUsage(usage, brief.usage);
+  addUsage(usage, brief.usage, "recorder");
   const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
@@ -262,7 +272,7 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
     const stage = stages[stageIndex] || stages[0];
     const speakerIds = stageSpeakers[stage] || ["captain"];
     const messages = [];
-    const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    const usage = createUsage();
     sendEvent(res, "meta", { stage, stageIndex });
     const backgroundToolsPromise = startBackgroundTools({ meeting, stage, res, signal });
 
@@ -270,11 +280,11 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
       const member = squad.find((item) => item.id === speakerId);
       const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal });
       messages.push(response.message);
-      addUsage(usage, response.usage);
+      addUsage(usage, response.usage, member.id);
     }
     const backgroundToolActivities = await backgroundToolsPromise;
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
-    addUsage(usage, brief.usage);
+    addUsage(usage, brief.usage, "recorder");
     sendEvent(res, "brief", { outputs: brief.outputs });
     const foregroundToolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
     for (const activity of foregroundToolActivities) sendEvent(res, "tool_activity", activity);
@@ -307,7 +317,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   };
   const speakers = selectUserResponders(userMessage);
   const messages = [userEntry];
-  const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const usage = createUsage();
 
   for (const speakerId of speakers) {
     const member = squad.find((item) => item.id === speakerId);
@@ -319,10 +329,10 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
       userMessage
     });
     messages.push(makeMessage(member, response.content, stage));
-    addUsage(usage, response.usage);
+    addUsage(usage, response.usage, member.id);
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
-  addUsage(usage, brief.usage);
+  addUsage(usage, brief.usage, "recorder");
   const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, includeResearch: false });
 
   return {
@@ -350,7 +360,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
       createdAt: new Date().toISOString()
     };
     const messages = [userEntry];
-    const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+    const usage = createUsage();
     sendEvent(res, "meta", { stage, stageIndex });
     sendEvent(res, "message_done", { message: userEntry });
 
@@ -366,10 +376,10 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
         signal
       });
       messages.push(response.message);
-      addUsage(usage, response.usage);
+      addUsage(usage, response.usage, member.id);
     }
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
-    addUsage(usage, brief.usage);
+    addUsage(usage, brief.usage, "recorder");
     sendEvent(res, "brief", { outputs: brief.outputs });
     const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
@@ -410,7 +420,9 @@ async function summarize({ meeting, history }) {
   });
   const message = makeMessage(member, response.content, stage);
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, message] });
-  addUsage(response.usage, brief.usage);
+  const usage = createUsage();
+  addUsage(usage, response.usage, member.id);
+  addUsage(usage, brief.usage, "recorder");
   const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, includeResearch: false });
 
   return {
@@ -419,7 +431,7 @@ async function summarize({ meeting, history }) {
     messages: [message],
     outputs: brief.outputs,
     toolActivities,
-    usage: response.usage
+    usage
   };
 }
 
@@ -442,7 +454,9 @@ async function streamSummaryResponse(res, { meeting, history }) {
       signal
     });
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message], signal });
-    addUsage(response.usage, brief.usage);
+    const usage = createUsage();
+    addUsage(usage, response.usage, member.id);
+    addUsage(usage, brief.usage, "recorder");
     sendEvent(res, "brief", { outputs: brief.outputs });
     const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs, signal, includeResearch: false });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
@@ -451,7 +465,7 @@ async function streamSummaryResponse(res, { meeting, history }) {
       stageIndex,
       outputs: brief.outputs,
       toolActivities,
-      usage: response.usage
+      usage
     });
   } catch (error) {
     if (error.name !== "AbortError") sendEvent(res, "error", { message: error.message });
@@ -484,7 +498,11 @@ function selectUserResponders(userMessage) {
 function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "" }) {
   const recent = getRecentMessages(history, 8);
   const existing = summarizeExistingWork(history);
-  const skill = skills.find((item) => item.owner === member.id);
+  const memberSkills = skills.filter((item) => item.owner === member.id);
+  const availableTools = tools
+    .filter((tool) => tool.agents.includes(member.id))
+    .map((tool) => `${tool.name} (${tool.approval === "none" ? "autonomous low-risk" : "requires approval unless auto research is enabled"})`)
+    .join(", ");
   return [
     `Meeting topic: ${meeting.topic}`,
     `Contest type: ${meeting.contestType}`,
@@ -499,7 +517,10 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     existing,
     "",
     "Relevant working method:",
-    skill?.content || "Use a practical, evidence-aware working method.",
+    memberSkills.map((skill) => `## ${skill.name}\n${skill.content}`).join("\n\n") || "Use a practical, evidence-aware working method.",
+    "",
+    `Available tools: ${availableTools || "No tools assigned."}`,
+    "Low-risk tools are executed automatically by the room at bounded stages. Ask for a tool result only when it materially improves the shared work product.",
     "",
     "Recent team conversation:",
     historyToText(recent),
@@ -990,7 +1011,7 @@ async function runAutomaticTools({ meeting, stage, brief, signal, includeResearc
   }
 
   if (stage === "Action Plan" || stage === "Summary") {
-    calls.push({ toolId: "update_task", agentId: "engineer", payload: { brief } });
+    calls.push({ toolId: "update_task", agentId: "captain", payload: { brief, stage } });
   }
 
   return Promise.all(calls.map((call) => executeTool({
@@ -1042,7 +1063,10 @@ async function executeTool(body = {}, { signal } = {}) {
       result: actions.slice(0, 6).map((title, index) => ({
         id: `task-${Date.now()}-${index}`,
         title: String(title),
-        status: "todo"
+        ownerAgent: inferTaskOwner(title, index),
+        status: "todo",
+        deliverable: inferDeliverable(title),
+        stageCreated: String(payload.stage || "Action Plan")
       }))
     };
   }
@@ -1180,10 +1204,41 @@ function estimateUsage(text) {
   return { promptTokens: 0, completionTokens: tokens, totalTokens: tokens };
 }
 
-function addUsage(target, source = {}) {
+function createUsage() {
+  return { promptTokens: 0, completionTokens: 0, totalTokens: 0, byAgent: {} };
+}
+
+function addUsage(target, source = {}, agentId = "") {
   target.promptTokens += source.promptTokens || 0;
   target.completionTokens += source.completionTokens || 0;
   target.totalTokens += source.totalTokens || 0;
+  if (!agentId) return;
+  target.byAgent ||= {};
+  target.byAgent[agentId] ||= { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  target.byAgent[agentId].promptTokens += source.promptTokens || 0;
+  target.byAgent[agentId].completionTokens += source.completionTokens || 0;
+  target.byAgent[agentId].totalTokens += source.totalTokens || 0;
+}
+
+function inferTaskOwner(title, index) {
+  const text = String(title || "").toLowerCase();
+  const routes = [
+    [["code", "build", "implement", "technical", "api", "prototype", "开发", "实现", "技术", "原型"], "engineer"],
+    [["user", "market", "growth", "competitor", "research", "用户", "市场", "增长", "竞品", "调研"], "strategist"],
+    [["design", "visual", "demo", "story", "界面", "设计", "视觉", "演示"], "designer"],
+    [["risk", "judge", "validate", "test", "风险", "评委", "验证", "测试"], "critic"],
+    [["idea", "concept", "brainstorm", "创意", "点子", "方向"], "ideator"]
+  ];
+  return routes.find(([keywords]) => keywords.some((keyword) => text.includes(keyword)))?.[1]
+    || ["captain", "engineer", "strategist", "designer"][index % 4];
+}
+
+function inferDeliverable(title) {
+  const text = String(title || "").toLowerCase();
+  if (["report", "research", "compare", "调研", "报告", "对比"].some((keyword) => text.includes(keyword))) return "report";
+  if (["prototype", "demo", "build", "原型", "演示", "开发"].some((keyword) => text.includes(keyword))) return "prototype";
+  if (["test", "validate", "验证", "测试"].some((keyword) => text.includes(keyword))) return "validation";
+  return "action";
 }
 
 function loadEnv(path) {

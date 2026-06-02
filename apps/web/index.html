@@ -125,6 +125,13 @@
             <span id="usageLine">0 tokens</span>
           </div>
           <div id="outputs" class="outputs"></div>
+          <section class="task-panel">
+            <div class="activity-header">
+              <h3>Task Center</h3>
+              <span id="workItemCount">0</span>
+            </div>
+            <div id="workItemList" class="work-item-list"></div>
+          </section>
           <section class="activity-panel">
             <div class="activity-header">
               <h3>Tool Activity</h3>
@@ -139,6 +146,10 @@
             </div>
             <div id="backgroundTaskList" class="background-task-list"></div>
           </section>
+          <details class="usage-panel">
+            <summary>Usage breakdown</summary>
+            <div id="usageBreakdown" class="usage-breakdown"></div>
+          </details>
           <div class="output-actions">
             <button id="runMeetingButton" class="primary-button">Run Meeting</button>
             <button id="continueButton" class="ghost-button">Next Stage</button>
@@ -150,6 +161,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260602-10" type="module"></script>
+    <script src="./app.js?v=20260602-11" type="module"></script>
   </body>
 </html>
