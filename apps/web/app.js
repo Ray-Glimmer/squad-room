@@ -414,15 +414,23 @@ function renderMessages() {
 function renderMessageHtml(message) {
   const kind = message.kind || "agent";
   const interrupted = message.interrupted ? " interrupted" : "";
+  const discussionLabel = formatDiscussionLabel(message.discussionMeta);
   return `
     <article class="message ${kind}${interrupted}" data-message-id="${escapeHtml(message.id)}">
       <div class="message-head">
         <span>${escapeHtml(message.speakerName || message.speakerId)}</span>
         <span class="message-stage">${message.interrupted ? '<span class="message-interrupted">Interrupted</span>' : ""}${escapeHtml(message.stage || "")}</span>
       </div>
+      ${discussionLabel ? `<div class="discussion-label">${escapeHtml(discussionLabel)}</div>` : ""}
       <div class="markdown-body">${renderMarkdown(message.content || "")}</div>
     </article>
   `;
+}
+
+function formatDiscussionLabel(meta = {}) {
+  if (!meta?.contributionType || meta.contributionType === "Core turn") return "";
+  const reply = meta.respondingTo ? ` · responding to ${meta.respondingTo}` : "";
+  return `${meta.contributionType}${reply}`;
 }
 
 function upsertMessage(message) {

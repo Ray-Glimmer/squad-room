@@ -87,15 +87,17 @@ const stages = [
   "Pitch Prep"
 ];
 
-const stageSpeakers = {
-  Framing: ["captain", "strategist", "engineer"],
-  Brainstorming: ["ideator", "designer", "captain"],
-  Feasibility: ["engineer", "strategist", "critic"],
-  Challenge: ["critic", "engineer", "captain"],
-  Convergence: ["captain", "strategist", "designer"],
-  "Action Plan": ["captain", "engineer", "designer"],
-  "Pitch Prep": ["critic", "designer", "captain"]
+const stagePlans = {
+  Framing: { required: ["captain", "strategist", "engineer"], optional: ["critic", "designer"], maxVisibleTurns: 6 },
+  Brainstorming: { required: ["ideator", "designer", "captain"], optional: ["strategist", "critic", "engineer"], maxVisibleTurns: 6 },
+  Feasibility: { required: ["engineer", "strategist", "critic"], optional: ["captain", "designer"], maxVisibleTurns: 6 },
+  Challenge: { required: ["critic", "engineer", "captain"], optional: ["strategist", "designer"], maxVisibleTurns: 6 },
+  Convergence: { required: ["captain", "strategist", "designer"], optional: ["critic", "engineer"], maxVisibleTurns: 6 },
+  "Action Plan": { required: ["captain", "engineer", "designer"], optional: ["strategist", "critic"], maxVisibleTurns: 6 },
+  "Pitch Prep": { required: ["critic", "designer", "captain"], optional: ["strategist", "engineer"], maxVisibleTurns: 6 }
 };
+const MAX_TURNS_PER_AGENT = 2;
+const MAX_ADAPTIVE_TURNS = 2;
 
 const stageObjectives = {
   Framing: "turn the user's topic into a clear contest problem, target user, judging angle, and success criteria",
@@ -241,16 +243,19 @@ server.listen(PORT, () => {
 
 async function runStage({ meeting, stageIndex, history }) {
   const stage = stages[stageIndex] || stages[0];
-  const speakerIds = stageSpeakers[stage] || ["captain"];
+  const plan = stagePlans[stage] || { required: ["captain"], optional: [], maxVisibleTurns: 4 };
   const messages = [];
   const usage = createUsage();
+  const turnCounts = {};
 
-  for (const speakerId of speakerIds) {
+  for (const speakerId of plan.required) {
     const member = squad.find((item) => item.id === speakerId);
     const response = await askMember({ meeting, member, stage, history: [...history, ...messages] });
-    messages.push(makeMessage(member, response.content, stage));
+    messages.push(makeMessage(member, response.content, stage, { contributionType: "Core turn" }));
     addUsage(usage, response.usage, member.id);
+    turnCounts[speakerId] = (turnCounts[speakerId] || 0) + 1;
   }
+  await runAdaptiveTurns({ meeting, stage, plan, history, messages, usage, turnCounts });
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage, "recorder");
   const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
@@ -270,18 +275,21 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
   const signal = createResponseAbortSignal(res);
   try {
     const stage = stages[stageIndex] || stages[0];
-    const speakerIds = stageSpeakers[stage] || ["captain"];
+    const plan = stagePlans[stage] || { required: ["captain"], optional: [], maxVisibleTurns: 4 };
     const messages = [];
     const usage = createUsage();
+    const turnCounts = {};
     sendEvent(res, "meta", { stage, stageIndex });
     const backgroundToolsPromise = startBackgroundTools({ meeting, stage, res, signal });
 
-    for (const speakerId of speakerIds) {
+    for (const speakerId of plan.required) {
       const member = squad.find((item) => item.id === speakerId);
-      const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal });
+      const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal, discussionMeta: { contributionType: "Core turn" } });
       messages.push(response.message);
       addUsage(usage, response.usage, member.id);
+      turnCounts[speakerId] = (turnCounts[speakerId] || 0) + 1;
     }
+    await runAdaptiveTurns({ meeting, stage, plan, history, messages, usage, turnCounts, res, signal });
     const backgroundToolActivities = await backgroundToolsPromise;
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages], signal });
     addUsage(usage, brief.usage, "recorder");
@@ -474,12 +482,103 @@ async function streamSummaryResponse(res, { meeting, history }) {
   }
 }
 
-async function askMember({ meeting, member, stage, history, userMessage = "" }) {
+async function askMember({ meeting, member, stage, history, userMessage = "", discussionMeta = {} }) {
   if (!USE_PROVIDER) {
     return mockMemberReply({ meeting, member, stage, userMessage });
   }
 
-  return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, member, stage, history, userMessage }) });
+  return callProvider({ system: buildSystem(member, stage), user: buildMemberUserPrompt({ meeting, member, stage, history, userMessage, discussionMeta }) });
+}
+
+async function runAdaptiveTurns({ meeting, stage, plan, history, messages, usage, turnCounts, res, signal }) {
+  let adaptiveTurns = 0;
+  while (adaptiveTurns < MAX_ADAPTIVE_TURNS && messages.length < plan.maxVisibleTurns - 1) {
+    const candidates = [...new Set([...plan.optional, ...plan.required])]
+      .filter((speakerId) => speakerId !== "captain")
+      .filter((speakerId) => (turnCounts[speakerId] || 0) < MAX_TURNS_PER_AGENT)
+      .filter((speakerId) => speakerId !== messages.at(-1)?.speakerId);
+    if (!candidates.length) break;
+
+    const request = await selectAdaptiveSpeaker({ meeting, stage, history: [...history, ...messages], candidates, adaptiveTurns, signal });
+    addUsage(usage, request.usage, "scheduler");
+    if (!request.speakerId) break;
+
+    const member = squad.find((item) => item.id === request.speakerId);
+    if (!member) break;
+    const discussionMeta = {
+      contributionType: request.impact === "risk" ? "Risk raised" : request.impact === "evidence" ? "New evidence" : "Follow-up",
+      respondingTo: request.replyTo || messages.at(-1)?.speakerId || ""
+    };
+    const response = res
+      ? await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal, discussionMeta })
+      : await askMember({ meeting, member, stage, history: [...history, ...messages], discussionMeta });
+    messages.push(res ? response.message : makeMessage(member, response.content, stage, discussionMeta));
+    addUsage(usage, response.usage, member.id);
+    turnCounts[member.id] = (turnCounts[member.id] || 0) + 1;
+    adaptiveTurns += 1;
+  }
+
+  const lastSpeakerId = messages.at(-1)?.speakerId;
+  if (!adaptiveTurns || lastSpeakerId === "captain" || messages.length >= plan.maxVisibleTurns || (turnCounts.captain || 0) >= MAX_TURNS_PER_AGENT) return;
+  const member = squad.find((item) => item.id === "captain");
+  const discussionMeta = { contributionType: "Captain decision", respondingTo: lastSpeakerId };
+  const response = res
+    ? await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal, discussionMeta })
+    : await askMember({ meeting, member, stage, history: [...history, ...messages], discussionMeta });
+  messages.push(res ? response.message : makeMessage(member, response.content, stage, discussionMeta));
+  addUsage(usage, response.usage, member.id);
+  turnCounts.captain = (turnCounts.captain || 0) + 1;
+}
+
+async function selectAdaptiveSpeaker({ meeting, stage, history, candidates, adaptiveTurns, signal }) {
+  if (!USE_PROVIDER) {
+    const speakerId = adaptiveTurns === 0 ? candidates[0] : "";
+    return {
+      speakerId,
+      replyTo: history.at(-1)?.speakerId || "",
+      impact: speakerId === "critic" ? "risk" : "decision",
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    };
+  }
+  const response = await callProvider({
+    system: [
+      "You are the silent meeting scheduler for Squad Room.",
+      "Select at most one teammate who should speak next.",
+      "Choose a speaker only if they can add new evidence, expose a consequential risk, change a decision, or materially improve execution.",
+      "Do not select someone for agreement, repetition, or minor polish.",
+      "Return JSON only. No markdown fences."
+    ].join("\n"),
+    user: [
+      `Topic: ${meeting.topic}`,
+      `Stage: ${stage}`,
+      `Stage objective: ${stageObjectives[stage]}`,
+      `Eligible teammates: ${candidates.join(", ")}`,
+      "",
+      'Return {"speakerId":"","replyTo":"","impact":"decision|risk|evidence|execution","reason":""}.',
+      'Use an empty speakerId when no additional visible turn is worthwhile.',
+      "",
+      "Recent discussion:",
+      historyToText(history.slice(-8)).slice(-7000)
+    ].join("\n"),
+    signal
+  });
+  return { ...parseSpeakRequest(response.content, candidates), usage: response.usage };
+}
+
+function parseSpeakRequest(content, candidates) {
+  try {
+    const match = String(content || "").match(/\{[\s\S]*\}/);
+    const parsed = match ? JSON.parse(match[0]) : {};
+    const speakerId = candidates.includes(parsed.speakerId) ? parsed.speakerId : "";
+    return {
+      speakerId,
+      replyTo: String(parsed.replyTo || ""),
+      impact: ["decision", "risk", "evidence", "execution"].includes(parsed.impact) ? parsed.impact : "decision",
+      reason: truncate(String(parsed.reason || ""), 180)
+    };
+  } catch {
+    return { speakerId: "", replyTo: "", impact: "decision", reason: "" };
+  }
 }
 
 function selectUserResponders(userMessage) {
@@ -495,7 +594,7 @@ function selectUserResponders(userMessage) {
   return specialist === "captain" ? ["captain"] : ["captain", specialist];
 }
 
-function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "" }) {
+function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "", discussionMeta = {} }) {
   const recent = getRecentMessages(history, 8);
   const existing = summarizeExistingWork(history);
   const memberSkills = skills.filter((item) => item.owner === member.id);
@@ -513,6 +612,8 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     `Exploration mode: ${meeting.explorationMode ? "deep exploration enabled" : "bounded exploration, maximum two opportunity-tool calls"}`,
     `Current stage: ${stage}`,
     `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
+    discussionMeta.respondingTo ? `You are responding to: ${discussionMeta.respondingTo}` : "",
+    discussionMeta.contributionType ? `Expected contribution: ${discussionMeta.contributionType}` : "",
     "",
     "Current shared work state:",
     existing,
@@ -572,7 +673,7 @@ async function callProvider({ system, user, signal }) {
   };
 }
 
-async function streamMember({ res, meeting, member, stage, history, userMessage = "", overrideUser = "", signal }) {
+async function streamMember({ res, meeting, member, stage, history, userMessage = "", overrideUser = "", signal, discussionMeta = {} }) {
   const id = randomUUID();
   let content = "";
   let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
@@ -583,6 +684,7 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
     kind: "agent",
     content: "",
     stage,
+    discussionMeta,
     createdAt: new Date().toISOString()
   };
   sendEvent(res, "message_start", { message: started });
@@ -598,7 +700,7 @@ async function streamMember({ res, meeting, member, stage, history, userMessage 
     }
     usage = mock.usage;
   } else {
-    const user = overrideUser || buildMemberUserPrompt({ meeting, member, stage, history, userMessage });
+    const user = overrideUser || buildMemberUserPrompt({ meeting, member, stage, history, userMessage, discussionMeta });
     const response = await callProviderStream({
       system: buildSystem(member, stage),
       user,
@@ -827,7 +929,7 @@ function normalizeMeeting(input = {}) {
   };
 }
 
-function makeMessage(member, content, stage) {
+function makeMessage(member, content, stage, discussionMeta = {}) {
   return {
     id: randomUUID(),
     speakerId: member.id,
@@ -835,6 +937,7 @@ function makeMessage(member, content, stage) {
     kind: "agent",
     content,
     stage,
+    discussionMeta,
     createdAt: new Date().toISOString()
   };
 }
