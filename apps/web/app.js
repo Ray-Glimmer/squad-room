@@ -33,6 +33,9 @@ let streamEpoch = 0;
 let abortReason = "";
 let isDrainingUserQueue = false;
 let pendingUserMessages = [];
+let activeUserBatch = [];
+let mergeQueuedInterventions = false;
+let deferredStreamRequest = null;
 let currentBrief = {};
 let availableSkills = [];
 let availableTools = [];
@@ -140,6 +143,9 @@ newMeetingButton.addEventListener("click", () => {
   workItems = [];
   inboxItems = [];
   pendingUserMessages = [];
+  activeUserBatch = [];
+  mergeQueuedInterventions = false;
+  deferredStreamRequest = null;
   materialFiles = [];
   isPaused = false;
   resumeAutomaticRun = false;
@@ -155,8 +161,15 @@ newMeetingButton.addEventListener("click", () => {
   roomView.classList.add("hidden");
 });
 
-interruptNowButton.addEventListener("click", () => {
-  if (!pendingUserMessages.length || !activeStreamController) return;
+interruptNowButton.addEventListener("click", async () => {
+  if (!getWaitingUserMessages().length) return;
+  if (!activeStreamController) {
+    await drainUserQueue();
+    await resumeDeferredStreamRequest();
+    await resumePendingAutomaticRun();
+    return;
+  }
+  mergeQueuedInterventions = true;
   abortReason = "user_interruption";
   activeStreamController.abort();
 });
@@ -173,7 +186,12 @@ pauseButton.addEventListener("click", async () => {
   pausedStreamRequest = null;
   renderPauseState();
   addSystemMessage("Meeting resumed.", "Control");
-  await drainUserQueue({ merge: true });
+  const queueCleared = await drainUserQueue({ merge: true });
+  if (!queueCleared) {
+    resumeAutomaticRun = shouldResumeAutomaticRun;
+    if (request && !shouldResumeAutomaticRun) deferredStreamRequest = request;
+    return;
+  }
   if (shouldResumeAutomaticRun) {
     await resumeAutomaticMeeting();
     return;
@@ -186,6 +204,7 @@ pauseButton.addEventListener("click", async () => {
       if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
     }
   }
+  await resumeDeferredStreamRequest();
 });
 
 autoResearchToggle.addEventListener("change", () => {
@@ -228,6 +247,7 @@ continueButton.addEventListener("click", async () => {
     await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
   });
   await drainUserQueue();
+  await resumeDeferredStreamRequest();
 });
 
 runMeetingButton.addEventListener("click", async () => {
@@ -240,6 +260,7 @@ summaryButton.addEventListener("click", async () => {
     await postStream("/api/meeting/summary/stream", { meeting, history });
   });
   await drainUserQueue();
+  await resumeDeferredStreamRequest();
 });
 
 messageForm.addEventListener("submit", async (event) => {
@@ -251,6 +272,8 @@ messageForm.addEventListener("submit", async (event) => {
   renderInterruptionQueue();
   if (isPaused) return;
   await drainUserQueue();
+  await resumeDeferredStreamRequest();
+  await resumePendingAutomaticRun();
 });
 
 async function startMeeting() {
@@ -268,6 +291,9 @@ async function startMeeting() {
   workItems = [];
   inboxItems = [];
   pendingUserMessages = [];
+  activeUserBatch = [];
+  mergeQueuedInterventions = false;
+  deferredStreamRequest = null;
   isPaused = false;
   resumeAutomaticRun = false;
   pausedStreamRequest = null;
@@ -287,6 +313,7 @@ async function startMeeting() {
     await postStream("/api/meeting/start/stream", meeting);
   });
   await drainUserQueue();
+  await resumeDeferredStreamRequest();
 }
 
 async function runMeeting() {
@@ -305,32 +332,54 @@ async function runMeeting() {
 }
 
 async function drainUserQueue({ merge = false } = {}) {
-  if (isDrainingUserQueue || isPaused || activeStreamController) return;
+  if (isDrainingUserQueue || isPaused || activeStreamController) return pendingUserMessages.length === 0;
   isDrainingUserQueue = true;
   try {
     while (!isPaused && !activeStreamController && pendingUserMessages.length) {
-      const queued = merge ? pendingUserMessages.splice(0) : [pendingUserMessages.shift()];
+      const shouldMerge = merge || mergeQueuedInterventions;
+      const queued = shouldMerge ? [...pendingUserMessages] : [pendingUserMessages[0]];
+      activeUserBatch = queued;
       const message = queued.map((item) => item.message).join("\n\n");
       renderInterruptionQueue();
-      await withBusy(messageForm.querySelector("button"), "Sending", async () => {
-        await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
+      const completed = await withBusy(messageForm.querySelector("button"), "Sending", async () => {
+        return postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
       });
+      if (completed !== true) {
+        if (completed === false && !isPaused && mergeQueuedInterventions) continue;
+        break;
+      }
+      const sentIds = new Set(queued.map((item) => item.id));
+      pendingUserMessages = pendingUserMessages.filter((item) => !sentIds.has(item.id));
+      activeUserBatch = [];
+      mergeQueuedInterventions = false;
       merge = false;
+      renderInterruptionQueue();
     }
   } finally {
+    activeUserBatch = [];
     isDrainingUserQueue = false;
     renderInterruptionQueue();
   }
+  return pendingUserMessages.length === 0;
 }
 
 function renderInterruptionQueue() {
   const count = pendingUserMessages.length;
+  const waitingCount = getWaitingUserMessages().length;
   interruptionBar.classList.toggle("hidden", count === 0);
   interruptionCount.textContent = isPaused
     ? `${count} ${count === 1 ? "note" : "notes"} queued for resume`
-    : `${count} pending ${count === 1 ? "message" : "messages"}`;
+    : activeUserBatch.length
+      ? `${count} ${count === 1 ? "message" : "messages"} · processing`
+      : `${count} pending ${count === 1 ? "message" : "messages"}`;
   interruptNowButton.hidden = isPaused;
-  interruptNowButton.disabled = isPaused || !activeStreamController;
+  interruptNowButton.textContent = activeStreamController ? "Interrupt now" : "Retry queued";
+  interruptNowButton.disabled = isPaused || waitingCount === 0;
+}
+
+function getWaitingUserMessages() {
+  const activeIds = new Set(activeUserBatch.map((item) => item.id));
+  return pendingUserMessages.filter((item) => !activeIds.has(item.id));
 }
 
 function pauseMeeting({ announce = true } = {}) {
@@ -357,6 +406,31 @@ function renderPauseState() {
 async function resumeAutomaticMeeting() {
   while (isRunningMeeting) await new Promise((resolve) => setTimeout(resolve, 0));
   await runMeeting();
+}
+
+async function resumeDeferredStreamRequest() {
+  if (!deferredStreamRequest || pendingUserMessages.length || isPaused || activeStreamController || isRunningMeeting) return;
+  const request = deferredStreamRequest;
+  deferredStreamRequest = null;
+  let completed = false;
+  try {
+    completed = await postStream(request.path, buildResumePayload(request.payload, history));
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      deferredStreamRequest = request;
+      addSystemMessage(error.message || "Could not resume the interrupted request.", "Error");
+    }
+    return;
+  }
+  if (completed) return;
+  await drainUserQueue();
+  await resumeDeferredStreamRequest();
+}
+
+async function resumePendingAutomaticRun() {
+  if (!resumeAutomaticRun || pendingUserMessages.length || isPaused || activeStreamController || isRunningMeeting) return;
+  resumeAutomaticRun = false;
+  await resumeAutomaticMeeting();
 }
 
 function applyResult(result) {
@@ -527,7 +601,7 @@ async function postStream(path, payload) {
     if (!response.ok || !response.body) {
       if (response.status === 404 && path.endsWith("/stream")) {
         applyResult(await postJson(path.replace(/\/stream$/, ""), payload));
-        return;
+        return true;
       }
       throw new Error((await response.text()) || `Request failed: ${response.status}`);
     }
@@ -547,13 +621,15 @@ async function postStream(path, payload) {
 
     if (buffer.trim()) handleStreamEvent(parseEventBlock(buffer));
     if (requestEpoch === streamEpoch) pausedStreamRequest = null;
+    return true;
   } catch (error) {
     if (error.name === "AbortError" && requestEpoch === streamEpoch) {
       const currentAbortReason = abortReason;
+      const isUserResponse = path === "/api/meeting/message/stream";
       stageIndex = previousStageIndex;
       stageBadge.textContent = previousStageLabel;
       currentBrief = previousBrief;
-      if (currentAbortReason === "pause") {
+      if (currentAbortReason === "pause" && !isUserResponse) {
         history = history
           .filter((message) => previousMessageIds.has(message.id) || (message.kind !== "user" && String(message.content || "").trim()))
           .map((message) => {
@@ -567,9 +643,12 @@ async function postStream(path, payload) {
       }
       renderMessages();
       renderOutputs(currentBrief);
-      pausedStreamRequest = currentAbortReason === "pause"
+      pausedStreamRequest = currentAbortReason === "pause" && !isUserResponse
         ? { path, payload: buildResumePayload(payload, history) }
         : null;
+      if (currentAbortReason === "user_interruption" && !isUserResponse && !isRunningMeeting) {
+        deferredStreamRequest = { path, payload: buildResumePayload(payload, history) };
+      }
       if (currentAbortReason === "user_interruption") return false;
     }
     throw error;
@@ -739,9 +818,10 @@ async function withBusy(button, label, task) {
   button.disabled = true;
   button.textContent = label;
   try {
-    await task();
+    return await task();
   } catch (error) {
     if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
+    return null;
   } finally {
     button.disabled = false;
     button.textContent = original;
