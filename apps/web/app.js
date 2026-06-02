@@ -418,7 +418,9 @@ function renderMarkdown(markdown) {
   if (!source.trim()) return '<span class="stream-cursor"></span>';
   const repaired = repairMarkdown(source);
   if (window.marked && window.DOMPurify) {
-    const html = window.marked.parse(stabilizeStrongMarkdown(repaired), { breaks: true, gfm: true });
+    const protectedMarkdown = protectStrongMarkdown(repaired);
+    const parsed = window.marked.parse(protectedMarkdown.markdown, { breaks: true, gfm: true });
+    const html = restoreStrongHtml(parsed, protectedMarkdown.values);
     return window.DOMPurify.sanitize(html, {
       ADD_ATTR: ["target", "rel"],
       FORBID_TAGS: ["style", "script", "iframe", "object", "embed"]
@@ -428,21 +430,33 @@ function renderMarkdown(markdown) {
 }
 
 function repairMarkdown(source) {
-  let repaired = String(source).replaceAll("＊", "*");
+  let repaired = String(source).replaceAll("\uFF0A", "*");
   const markers = [...repaired.matchAll(/\*\*/g)];
   if (markers.length % 2 === 0) return repaired;
 
   const openingIndex = markers.at(-1).index;
   const contentStart = openingIndex + 2;
   const tail = repaired.slice(contentStart);
-  const separator = tail.search(/\s(?:-|–|—{2,})\s/);
+  const separator = tail.search(/\s-\s/);
 
   if (separator === -1) return `${repaired}**`;
   return `${repaired.slice(0, contentStart + separator)}**${repaired.slice(contentStart + separator)}`;
 }
 
-function stabilizeStrongMarkdown(source) {
-  return source.replace(/\*\*([^\n]+?)\*\*/g, "<strong>$1</strong>");
+function protectStrongMarkdown(source) {
+  const values = [];
+  const markdown = source.replace(/\*\*([^\n]+?)\*\*/g, (_, value) => {
+    const token = `SQUADSTRONGTOKEN${values.length}END`;
+    values.push(value);
+    return token;
+  });
+  return { markdown, values };
+}
+
+function restoreStrongHtml(html, values) {
+  return values.reduce((result, value, index) => {
+    return result.replaceAll(`SQUADSTRONGTOKEN${index}END`, `<strong>${escapeHtml(value)}</strong>`);
+  }, html);
 }
 
 function renderBasicMarkdown(source) {
