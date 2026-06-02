@@ -60,6 +60,7 @@ const interruptNowButton = document.querySelector("#interruptNowButton");
 const messageList = document.querySelector("#messageList");
 const squadList = document.querySelector("#squadList");
 const skillList = document.querySelector("#skillList");
+const skillCount = document.querySelector("#skillCount");
 const outputs = document.querySelector("#outputs");
 const activityCount = document.querySelector("#activityCount");
 const activityList = document.querySelector("#activityList");
@@ -73,6 +74,7 @@ const inboxList = document.querySelector("#inboxList");
 const agentWorkspaceList = document.querySelector("#agentWorkspaceList");
 const sharedWorkspaceSummary = document.querySelector("#sharedWorkspaceSummary");
 const toolRegistry = document.querySelector("#toolRegistry");
+const toolCount = document.querySelector("#toolCount");
 const materialFileInput = document.querySelector("#materialFileInput");
 const materialFileButton = document.querySelector("#materialFileButton");
 const materialFileList = document.querySelector("#materialFileList");
@@ -756,12 +758,14 @@ function renderMarkdown(markdown) {
 }
 
 function renderSkills() {
+  skillCount.textContent = String(availableSkills.length);
   skillList.innerHTML = availableSkills.length
     ? availableSkills.map((skill) => `<span class="skill-chip">${escapeHtml(skill.name)}</span>`).join("")
     : '<span class="muted-line">Loading...</span>';
 }
 
 function renderTools() {
+  toolCount.textContent = String(availableTools.length);
   toolRegistry.innerHTML = availableTools.length
     ? availableTools.map((tool) => `
         <div class="tool-registry-item">

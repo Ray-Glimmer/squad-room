@@ -296,7 +296,7 @@ textarea:focus {
 
 .output-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -353,6 +353,42 @@ textarea:focus {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.capability-panel > summary,
+.output-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+
+.capability-panel > summary::-webkit-details-marker,
+.output-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.capability-panel > summary::before,
+.output-group > summary::before {
+  content: "▸";
+  color: var(--blue);
+  font-size: 11px;
+}
+
+.capability-panel[open] > summary::before,
+.output-group[open] > summary::before {
+  content: "▾";
+}
+
+.capability-panel > summary span,
+.output-group > summary span {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .skill-list {
@@ -674,8 +710,7 @@ textarea:focus {
   display: grid;
   align-content: start;
   gap: 14px;
-  margin: 16px 0;
-  overflow: auto;
+  margin: 12px 0 0;
   padding-right: 4px;
 }
 
@@ -727,6 +762,21 @@ textarea:focus {
   font-size: 0.9em;
 }
 
+.output-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.output-group {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.output-group > summary {
+  font-size: 14px;
+}
+
 .interruption-bar {
   display: flex;
   align-items: center;
@@ -771,9 +821,7 @@ textarea:focus {
 .work-item-list {
   display: grid;
   gap: 6px;
-  max-height: 154px;
   margin-top: 8px;
-  overflow: auto;
   padding-right: 4px;
 }
 
@@ -826,9 +874,7 @@ textarea:focus {
 .inbox-list {
   display: grid;
   gap: 6px;
-  max-height: 154px;
   margin-top: 8px;
-  overflow: auto;
   padding-right: 4px;
 }
 
@@ -870,9 +916,7 @@ textarea:focus {
 .agent-workspace-list {
   display: grid;
   gap: 5px;
-  max-height: 140px;
   margin-top: 7px;
-  overflow: auto;
 }
 
 .agent-workspace {
@@ -885,9 +929,7 @@ textarea:focus {
 .shared-workspace-summary {
   display: grid;
   gap: 5px;
-  max-height: 150px;
   margin-top: 7px;
-  overflow: auto;
 }
 
 .shared-workspace-summary div {
@@ -922,9 +964,7 @@ textarea:focus {
 .background-task-list {
   display: grid;
   gap: 6px;
-  max-height: 144px;
   margin-top: 8px;
-  overflow: auto;
   padding-right: 4px;
 }
 
@@ -976,9 +1016,7 @@ textarea:focus {
 .activity-list {
   display: grid;
   gap: 8px;
-  max-height: 220px;
   margin-top: 10px;
-  overflow: auto;
   padding-right: 4px;
 }
 
@@ -1037,7 +1075,12 @@ textarea:focus {
 }
 
 .output-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   padding-top: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .usage-panel {
@@ -1055,8 +1098,7 @@ textarea:focus {
 }
 
 .usage-breakdown {
-  max-height: 170px;
-  overflow: auto;
+  padding-top: 2px;
 }
 
 .usage-breakdown h4 {

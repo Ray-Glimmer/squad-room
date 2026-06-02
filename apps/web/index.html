@@ -110,14 +110,14 @@
         <aside class="squad-panel">
           <h3>Teammates</h3>
           <div id="squadList" class="squad-list"></div>
-          <section class="capability-panel">
-            <h3>Skills</h3>
+          <details class="capability-panel">
+            <summary>Skills <span id="skillCount">0</span></summary>
             <div id="skillList" class="skill-list"></div>
-          </section>
-          <section class="capability-panel">
-            <h3>Tools</h3>
+          </details>
+          <details class="capability-panel">
+            <summary>Tools <span id="toolCount">0</span></summary>
             <div id="toolRegistry" class="tool-registry"></div>
-          </section>
+          </details>
         </aside>
 
         <section class="chat-panel">
@@ -137,47 +137,40 @@
             <h3>Brief</h3>
             <span id="usageLine">0 tokens</span>
           </div>
-          <div id="outputs" class="outputs"></div>
-          <section class="task-panel">
-            <div class="activity-header">
-              <h3>Task Center</h3>
-              <span id="workItemCount">0</span>
-            </div>
-            <div id="workItemList" class="work-item-list"></div>
-          </section>
-          <section class="workspace-panel">
-            <div class="activity-header">
-              <h3>Team Inbox</h3>
-              <span id="inboxCount">0</span>
-            </div>
-            <div id="inboxList" class="inbox-list"></div>
-            <details class="agent-workspaces">
-              <summary>Shared workspace</summary>
-              <div id="sharedWorkspaceSummary" class="shared-workspace-summary"></div>
+          <div class="output-scroll">
+            <details class="output-group brief-group" open>
+              <summary>Current Brief</summary>
+              <div id="outputs" class="outputs"></div>
             </details>
-            <details class="agent-workspaces">
-              <summary>Agent workspaces</summary>
-              <div id="agentWorkspaceList" class="agent-workspace-list"></div>
+            <details class="output-group" open>
+              <summary>Task Center <span id="workItemCount">0</span></summary>
+              <div id="workItemList" class="work-item-list"></div>
             </details>
-          </section>
-          <section class="activity-panel">
-            <div class="activity-header">
-              <h3>Tool Activity</h3>
-              <span id="activityCount">0</span>
-            </div>
-            <div id="activityList" class="activity-list"></div>
-          </section>
-          <section class="background-panel">
-            <div class="activity-header">
-              <h3>Background Tasks</h3>
-              <span id="backgroundTaskCount">0</span>
-            </div>
-            <div id="backgroundTaskList" class="background-task-list"></div>
-          </section>
-          <details class="usage-panel">
-            <summary>Usage breakdown</summary>
-            <div id="usageBreakdown" class="usage-breakdown"></div>
-          </details>
+            <details class="output-group" open>
+              <summary>Team Inbox <span id="inboxCount">0</span></summary>
+              <div id="inboxList" class="inbox-list"></div>
+              <details class="agent-workspaces">
+                <summary>Shared workspace</summary>
+                <div id="sharedWorkspaceSummary" class="shared-workspace-summary"></div>
+              </details>
+              <details class="agent-workspaces">
+                <summary>Agent workspaces</summary>
+                <div id="agentWorkspaceList" class="agent-workspace-list"></div>
+              </details>
+            </details>
+            <details class="output-group">
+              <summary>Tool Activity <span id="activityCount">0</span></summary>
+              <div id="activityList" class="activity-list"></div>
+            </details>
+            <details class="output-group">
+              <summary>Background Tasks <span id="backgroundTaskCount">0</span></summary>
+              <div id="backgroundTaskList" class="background-task-list"></div>
+            </details>
+            <details class="output-group">
+              <summary>Usage breakdown</summary>
+              <div id="usageBreakdown" class="usage-breakdown"></div>
+            </details>
+          </div>
           <div class="output-actions">
             <button id="runMeetingButton" class="primary-button">Run Meeting</button>
             <button id="continueButton" class="ghost-button">Next Stage</button>
@@ -189,6 +182,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260602-12" type="module"></script>
+    <script src="./app.js?v=20260602-13" type="module"></script>
   </body>
 </html>
