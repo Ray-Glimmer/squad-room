@@ -416,14 +416,33 @@ async function withBusy(button, label, task) {
 function renderMarkdown(markdown) {
   const source = String(markdown || "");
   if (!source.trim()) return '<span class="stream-cursor"></span>';
+  const repaired = repairMarkdown(source);
   if (window.marked && window.DOMPurify) {
-    const html = window.marked.parse(source, { breaks: true, gfm: true });
+    const html = window.marked.parse(stabilizeStrongMarkdown(repaired), { breaks: true, gfm: true });
     return window.DOMPurify.sanitize(html, {
       ADD_ATTR: ["target", "rel"],
       FORBID_TAGS: ["style", "script", "iframe", "object", "embed"]
     });
   }
-  return renderBasicMarkdown(source);
+  return renderBasicMarkdown(repaired);
+}
+
+function repairMarkdown(source) {
+  let repaired = String(source).replaceAll("＊", "*");
+  const markers = [...repaired.matchAll(/\*\*/g)];
+  if (markers.length % 2 === 0) return repaired;
+
+  const openingIndex = markers.at(-1).index;
+  const contentStart = openingIndex + 2;
+  const tail = repaired.slice(contentStart);
+  const separator = tail.search(/\s(?:-|–|—{2,})\s/);
+
+  if (separator === -1) return `${repaired}**`;
+  return `${repaired.slice(0, contentStart + separator)}**${repaired.slice(contentStart + separator)}`;
+}
+
+function stabilizeStrongMarkdown(source) {
+  return source.replace(/\*\*([^\n]+?)\*\*/g, "<strong>$1</strong>");
 }
 
 function renderBasicMarkdown(source) {
