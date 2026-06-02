@@ -142,19 +142,21 @@ pauseButton.addEventListener("click", async () => {
     pauseMeeting();
     return;
   }
+  const shouldResumeAutomaticRun = resumeAutomaticRun;
+  const request = pausedStreamRequest;
   isPaused = false;
+  resumeAutomaticRun = false;
+  pausedStreamRequest = null;
   renderPauseState();
   addSystemMessage("Meeting resumed.", "Control");
-  if (resumeAutomaticRun) {
-    resumeAutomaticRun = false;
-    await runMeeting();
+  await drainUserQueue({ merge: true });
+  if (shouldResumeAutomaticRun) {
+    await resumeAutomaticMeeting();
     return;
   }
-  if (pausedStreamRequest) {
-    const request = pausedStreamRequest;
-    pausedStreamRequest = null;
+  if (request) {
     try {
-      await postStream(request.path, request.payload);
+      await postStream(request.path, buildResumePayload(request.payload, history));
       await drainUserQueue();
     } catch (error) {
       if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
@@ -207,10 +209,11 @@ summaryButton.addEventListener("click", async () => {
 messageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = messageInput.value.trim();
-  if (!message || isPaused) return;
+  if (!message) return;
   messageInput.value = "";
   pendingUserMessages.push({ id: crypto.randomUUID(), message });
   renderInterruptionQueue();
+  if (isPaused) return;
   await drainUserQueue();
 });
 
@@ -258,16 +261,18 @@ async function runMeeting() {
   isRunningMeeting = false;
 }
 
-async function drainUserQueue() {
+async function drainUserQueue({ merge = false } = {}) {
   if (isDrainingUserQueue || isPaused || activeStreamController) return;
   isDrainingUserQueue = true;
   try {
     while (!isPaused && !activeStreamController && pendingUserMessages.length) {
-      const next = pendingUserMessages.shift();
+      const queued = merge ? pendingUserMessages.splice(0) : [pendingUserMessages.shift()];
+      const message = queued.map((item) => item.message).join("\n\n");
       renderInterruptionQueue();
       await withBusy(messageForm.querySelector("button"), "Sending", async () => {
-        await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message: next.message });
+        await postStream("/api/meeting/message/stream", { meeting, history, stageIndex, message });
       });
+      merge = false;
     }
   } finally {
     isDrainingUserQueue = false;
@@ -278,8 +283,11 @@ async function drainUserQueue() {
 function renderInterruptionQueue() {
   const count = pendingUserMessages.length;
   interruptionBar.classList.toggle("hidden", count === 0);
-  interruptionCount.textContent = `${count} pending ${count === 1 ? "message" : "messages"}`;
-  interruptNowButton.disabled = !activeStreamController;
+  interruptionCount.textContent = isPaused
+    ? `${count} ${count === 1 ? "note" : "notes"} queued for resume`
+    : `${count} pending ${count === 1 ? "message" : "messages"}`;
+  interruptNowButton.hidden = isPaused;
+  interruptNowButton.disabled = isPaused || !activeStreamController;
 }
 
 function pauseMeeting({ announce = true } = {}) {
@@ -289,7 +297,7 @@ function pauseMeeting({ announce = true } = {}) {
   abortReason = "pause";
   activeStreamController?.abort();
   renderPauseState();
-  if (announce) addSystemMessage("Meeting paused. Partial output is preserved; resume to continue from the last completed stage.", "Control");
+  if (announce) addSystemMessage("Meeting paused. Partial output is preserved. Add context or instructions, then resume when ready.", "Control");
 }
 
 function renderPauseState() {
@@ -298,8 +306,14 @@ function renderPauseState() {
   runMeetingButton.disabled = isPaused;
   continueButton.disabled = isPaused;
   summaryButton.disabled = isPaused;
-  messageInput.disabled = isPaused;
-  messageForm.querySelector("button").disabled = isPaused;
+  messageInput.disabled = false;
+  messageForm.querySelector("button").disabled = false;
+  renderInterruptionQueue();
+}
+
+async function resumeAutomaticMeeting() {
+  while (isRunningMeeting) await new Promise((resolve) => setTimeout(resolve, 0));
+  await runMeeting();
 }
 
 function applyResult(result) {
