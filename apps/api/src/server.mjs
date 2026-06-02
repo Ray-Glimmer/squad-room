@@ -29,7 +29,7 @@ const tools = [
   { id: "read_project_file", name: "Read Project Context", approval: "none", trigger: "automatic", agents: ["captain", "engineer", "strategist", "critic"] },
   { id: "write_artifact", name: "Create Brief Artifact", approval: "none", trigger: "automatic", agents: ["captain", "designer"] },
   { id: "update_task", name: "Create Tasks", approval: "none", trigger: "automatic", agents: ["captain", "engineer"] },
-  { id: "web_search", name: "Request Web Search", approval: "user", trigger: "automatic_request", agents: ["ideator", "engineer", "strategist", "critic"] }
+  { id: "web_search", name: "Web Research", approval: "user", trigger: "automatic_request", agents: ["ideator", "engineer", "strategist", "critic"] }
 ];
 
 const squad = [
@@ -142,7 +142,7 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/api/tools/execute") {
       const body = await readJson(req);
-      sendJson(res, 200, executeTool(body));
+      sendJson(res, 200, await executeTool(body));
       return;
     }
 
@@ -243,7 +243,7 @@ async function runStage({ meeting, stageIndex, history }) {
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage);
-  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
@@ -273,7 +273,7 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
@@ -319,7 +319,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   }
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
   addUsage(usage, brief.usage);
-  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
@@ -365,7 +365,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
     addUsage(usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
 
     sendEvent(res, "done", {
@@ -405,7 +405,7 @@ async function summarize({ meeting, history }) {
   const message = makeMessage(member, response.content, stage);
   const brief = await buildStructuredBrief({ meeting, stage, history: [...history, message] });
   addUsage(response.usage, brief.usage);
-  const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+  const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
 
   return {
     stage,
@@ -436,7 +436,7 @@ async function streamSummaryResponse(res, { meeting, history }) {
     const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message] });
     addUsage(response.usage, brief.usage);
     sendEvent(res, "brief", { outputs: brief.outputs });
-    const toolActivities = runAutomaticTools({ meeting, stage, brief: brief.outputs });
+    const toolActivities = await runAutomaticTools({ meeting, stage, brief: brief.outputs });
     for (const activity of toolActivities) sendEvent(res, "tool_activity", activity);
     sendEvent(res, "done", {
       stage,
@@ -470,6 +470,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     `Project materials: ${meeting.projectMaterials}`,
+    `Approved web research: ${meeting.researchContext}`,
     `Current stage: ${stage}`,
     `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
     "",
@@ -770,7 +771,8 @@ function normalizeMeeting(input = {}) {
     contestType: String(input.contestType || "General").trim(),
     goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
-    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000)
+    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000),
+    researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000)
   };
 }
 
@@ -880,7 +882,7 @@ function loadSkill(id, name, owner, relativePath) {
   };
 }
 
-function runAutomaticTools({ meeting, stage, brief }) {
+async function runAutomaticTools({ meeting, stage, brief }) {
   const calls = [];
   const hasProjectMaterials = meeting.projectMaterials && meeting.projectMaterials !== "No project materials provided.";
 
@@ -907,14 +909,14 @@ function runAutomaticTools({ meeting, stage, brief }) {
     calls.push({ toolId: "update_task", agentId: "engineer", payload: { brief } });
   }
 
-  return calls.map((call) => executeTool({
+  return Promise.all(calls.map((call) => executeTool({
     ...call,
     source: "automatic",
     automationKey: `${stage}:${call.toolId}`
-  }));
+  })));
 }
 
-function executeTool(body = {}) {
+async function executeTool(body = {}) {
   const toolId = String(body.toolId || "");
   const agentId = String(body.agentId || "captain");
   const tool = tools.find((item) => item.id === toolId);
@@ -964,15 +966,73 @@ function executeTool(body = {}) {
   if (toolId === "web_search") {
     const query = truncate(String(payload.query || "").trim(), 240);
     if (!query) return { ok: false, error: "Search query is required." };
+    if (payload.approved === true) {
+      const result = await searchWeb(query);
+      return {
+        ...base,
+        status: "completed",
+        query,
+        result
+      };
+    }
     return {
       ...base,
       status: "approval_required",
-      query,
-      searchUrl: `https://www.google.com/search?q=${encodeURIComponent(query)}`
+      query
     };
   }
 
   return { ok: false, error: "Tool is not implemented." };
+}
+
+async function searchWeb(query) {
+  const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+    headers: {
+      Accept: "text/html",
+      "User-Agent": "Mozilla/5.0 SquadRoom/0.1"
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) throw new Error(`Search provider returned ${response.status}.`);
+  const html = await response.text();
+  const resultPattern = /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+  const results = [];
+  for (const match of html.matchAll(resultPattern)) {
+    const url = normalizeSearchResultUrl(decodeHtml(match[1]));
+    if (!url) continue;
+    results.push({
+      title: cleanSearchText(match[2]),
+      url,
+      snippet: cleanSearchText(match[3])
+    });
+    if (results.length >= 5) break;
+  }
+  if (!results.length) throw new Error("Search provider returned no readable results.");
+  return results;
+}
+
+function normalizeSearchResultUrl(value) {
+  try {
+    const url = new URL(value, "https://html.duckduckgo.com");
+    const target = url.searchParams.get("uddg");
+    const resolved = new URL(target ? decodeURIComponent(target) : url.href);
+    return ["http:", "https:"].includes(resolved.protocol) ? resolved.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function cleanSearchText(value) {
+  return decodeHtml(String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function decodeHtml(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }
 
 function briefToMarkdown(brief) {

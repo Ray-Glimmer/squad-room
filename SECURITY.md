@@ -10,7 +10,7 @@ Squad Room is designed so the static frontend never needs a model provider API k
 - Keep API keys on the API server only.
 - Use mock mode for demos and screenshots.
 - Keep tool activity visible to the user.
-- Require explicit user approval before opening third-party web searches.
+- Require explicit user approval before sending a query to a third-party search provider.
 - Run low-risk automatic tools only at bounded meeting stages.
 
 ## Project Material Imports
@@ -31,5 +31,5 @@ If you find a security issue, avoid posting real API keys or logs in a public is
 - Meeting history currently stays in the browser session.
 - Usage cost is estimated from provider token fields when available.
 - The MVP tools do not read arbitrary local files or execute code. Project material import reads only files selected by the user.
-- Web-search requests open a browser search page only after the user clicks Approve.
+- Web-search requests send only the visible query to the search provider after the user clicks Approve. Results are added to the in-memory meeting research context.
 - Automatic tool activity is bounded to context reading, brief generation, and task generation.

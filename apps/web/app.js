@@ -74,7 +74,8 @@ meetingForm.addEventListener("submit", async (event) => {
     contestType: form.get("contestType"),
     goal: form.get("goal"),
     constraints: form.get("constraints"),
-    projectMaterials: form.get("projectMaterials")
+    projectMaterials: form.get("projectMaterials"),
+    researchContext: ""
   };
   await startMeeting();
 });
@@ -641,7 +642,12 @@ function renderActivity(activity) {
       <article class="activity-item pending">
         <strong>${escapeHtml(heading)}</strong>
         <p>${escapeHtml(activity.query)}</p>
-        <button class="ghost-button approve-search" data-search-url="${escapeHtml(activity.searchUrl)}">Approve</button>
+        <button
+          class="ghost-button approve-search"
+          data-agent-id="${escapeHtml(activity.agentId)}"
+          data-automation-key="${escapeHtml(activity.automationKey)}"
+          data-query="${escapeHtml(activity.query)}"
+        >Approve search</button>
       </article>
     `;
   }
@@ -668,24 +674,62 @@ function summarizeToolResult(activity) {
     const count = Array.isArray(activity.result) ? activity.result.length : 0;
     return `${count} action ${count === 1 ? "item" : "items"} prepared.`;
   }
+  if (activity.toolId === "web_search") {
+    const count = Array.isArray(activity.result) ? activity.result.length : 0;
+    return `${count} web research ${count === 1 ? "source" : "sources"} added to shared context.`;
+  }
   return "Completed.";
 }
 
 function renderToolResult(result) {
   if (Array.isArray(result)) {
-    return `<ul>${result.map((item) => `<li>${renderMarkdown(item.title || String(item))}</li>`).join("")}</ul>`;
+    return `<ul>${result.map((item) => {
+      if (item.url) {
+        return `<li><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || item.url)}</a>${item.snippet ? `<p>${escapeHtml(item.snippet)}</p>` : ""}</li>`;
+      }
+      return `<li>${renderMarkdown(item.title || String(item))}</li>`;
+    }).join("")}</ul>`;
   }
   return `<div class="brief-markdown">${renderMarkdown(String(result || "Completed."))}</div>`;
 }
 
-activityList.addEventListener("click", (event) => {
+activityList.addEventListener("click", async (event) => {
   const button = event.target.closest(".approve-search");
   if (!button) return;
-  const url = button.dataset.searchUrl;
-  if (url) window.open(url, "_blank", "noopener,noreferrer");
-  button.textContent = "Opened";
   button.disabled = true;
+  button.textContent = "Searching...";
+  try {
+    const response = await postJson("/api/tools/execute", {
+      toolId: "web_search",
+      agentId: button.dataset.agentId,
+      source: "automatic",
+      automationKey: button.dataset.automationKey,
+      payload: {
+        query: button.dataset.query,
+        approved: true
+      }
+    });
+    addToolActivities([response]);
+    appendResearchContext(response);
+    addSystemMessage("Approved web research is complete. The sources were added to the squad's shared context for the next turn.", "Research");
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Retry search";
+    addSystemMessage(error.message || "Web research failed.", "Tool Error");
+  }
 });
+
+function appendResearchContext(activity) {
+  if (!meeting || !Array.isArray(activity.result)) return;
+  const section = [
+    `Research query: ${activity.query}`,
+    ...activity.result.map((item, index) => `${index + 1}. ${item.title}\nSource: ${item.url}\nSummary: ${item.snippet || "No snippet available."}`)
+  ].join("\n\n");
+  meeting.researchContext = [meeting.researchContext, section]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(-6000);
+}
 
 function repairMarkdown(source) {
   let repaired = String(source).replaceAll("\uFF0A", "*");

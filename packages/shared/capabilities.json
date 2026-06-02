@@ -11,6 +11,6 @@
     { "id": "read_project_file", "name": "Read Project Context", "approval": "none", "trigger": "automatic" },
     { "id": "write_artifact", "name": "Create Brief Artifact", "approval": "none", "trigger": "automatic" },
     { "id": "update_task", "name": "Create Tasks", "approval": "none", "trigger": "automatic" },
-    { "id": "web_search", "name": "Request Web Search", "approval": "user", "trigger": "automatic_request" }
+    { "id": "web_search", "name": "Web Research", "approval": "user", "trigger": "automatic_request" }
   ]
 }

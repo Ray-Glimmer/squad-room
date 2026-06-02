@@ -112,9 +112,9 @@ The current tool set is intentionally limited:
 | Read Project Context | Captain reads explicitly provided materials during Framing. | None |
 | Create Brief Artifact | Captain refreshes a Markdown brief during Convergence and Summary. | None |
 | Create Tasks | Engineer prepares action items during Action Plan and Summary. | None |
-| Request Web Search | Strategist proposes a visible research request during Framing. It does not search in the background. | User click |
+| Web Research | Strategist proposes a visible research request during Framing. After approval, the API server fetches results and adds them to the squad's shared research context. | User click |
 
-Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. External web searches still wait for explicit approval. This first version does not read arbitrary files from your machine, run code, or transmit project materials to third-party search engines.
+Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. External web searches still wait for explicit approval. After approval, only the search query is sent to the search provider; project materials are not transmitted. This first version does not read arbitrary files from your machine or run code.
 
 ## GitHub Pages
 
