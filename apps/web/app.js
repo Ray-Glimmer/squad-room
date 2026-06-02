@@ -440,7 +440,8 @@ function repairMarkdown(source) {
   const separator = tail.search(/\s-\s/);
 
   if (separator === -1) return `${repaired}**`;
-  return `${repaired.slice(0, contentStart + separator)}**${repaired.slice(contentStart + separator)}`;
+  const separatorEnd = contentStart + separator + 3;
+  return `${repaired.slice(0, contentStart + separator)}**: ${repaired.slice(separatorEnd)}`;
 }
 
 function protectStrongMarkdown(source) {
