@@ -89,6 +89,7 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Generate a final brief.
 - Stream teammate responses as they are generated.
 - Render teammate messages as sanitized Markdown.
+- Generate a structured brief once per stage with a bounded recorder step.
 - View extracted outputs: proposal, actions, risks, and judge questions.
 
 ## GitHub Pages

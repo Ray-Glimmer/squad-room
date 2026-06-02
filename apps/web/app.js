@@ -22,6 +22,7 @@ let history = [];
 let stageIndex = 0;
 let totalTokens = 0;
 let isRunningMeeting = false;
+let currentBrief = {};
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
@@ -73,6 +74,7 @@ newMeetingButton.addEventListener("click", () => {
   history = [];
   stageIndex = 0;
   totalTokens = 0;
+  currentBrief = {};
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
 });
@@ -119,6 +121,7 @@ async function startMeeting() {
   history = [];
   stageIndex = 0;
   totalTokens = 0;
+  currentBrief = {};
   renderMessages();
   renderOutputs({});
 
@@ -133,7 +136,8 @@ function applyResult(result) {
   if (Array.isArray(result.messages)) history = [...history, ...result.messages];
   applyUsage(result.usage);
   renderMessages();
-  renderOutputs(buildLocalBrief(history));
+  currentBrief = result.outputs || currentBrief;
+  renderOutputs(currentBrief);
 }
 
 function applyUsage(usage = {}) {
@@ -195,7 +199,6 @@ function appendToken(id, token) {
 
 function finalizeMessage(message) {
   upsertMessage(message);
-  renderOutputs(buildLocalBrief(history));
 }
 
 function renderOutputs(data) {
@@ -294,11 +297,17 @@ function handleStreamEvent(event) {
   if (event.type === "message_start") return upsertMessage(data.message);
   if (event.type === "token") return appendToken(data.id, data.token || "");
   if (event.type === "message_done") return finalizeMessage(data.message);
+  if (event.type === "brief") {
+    currentBrief = data.outputs || {};
+    renderOutputs(currentBrief);
+    return;
+  }
   if (event.type === "done") {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
     applyUsage(data.usage);
-    renderOutputs(buildLocalBrief(history));
+    currentBrief = data.outputs || currentBrief;
+    renderOutputs(currentBrief);
     addStageProgressMessage(data.stage);
     return;
   }

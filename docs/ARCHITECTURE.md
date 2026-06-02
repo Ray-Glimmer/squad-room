@@ -43,8 +43,20 @@ meta           Current stage and stage index
 message_start  Placeholder message for one teammate
 token          Incremental text chunk for that message
 message_done   Final message object
+brief          Structured current-state brief after the stage
 done           Outputs and usage for the whole request
 error          Stream-level error message
+```
+
+## Brief Recorder
+
+After each stage, the API runs one bounded recorder step. The recorder does not join the debate or trigger more agent turns. It returns four concise arrays:
+
+```text
+proposal   Current direction and decisions
+actions    Concrete next actions
+risks      Material risks and assumptions
+questions  Open questions that still block confidence
 ```
 
 ## Data Model

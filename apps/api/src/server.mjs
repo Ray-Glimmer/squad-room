@@ -216,12 +216,14 @@ async function runStage({ meeting, stageIndex, history }) {
     messages.push(makeMessage(member, response.content, stage));
     addUsage(usage, response.usage);
   }
+  const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+  addUsage(usage, brief.usage);
 
   return {
     stage,
     stageIndex,
     messages,
-    outputs: extractOutputs([...history, ...messages]),
+    outputs: brief.outputs,
     usage
   };
 }
@@ -241,11 +243,14 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
       messages.push(response.message);
       addUsage(usage, response.usage);
     }
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+    addUsage(usage, brief.usage);
+    sendEvent(res, "brief", { outputs: brief.outputs });
 
     sendEvent(res, "done", {
       stage,
       stageIndex,
-      outputs: extractOutputs([...history, ...messages]),
+      outputs: brief.outputs,
       usage
     });
   } catch (error) {
@@ -282,12 +287,14 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
     messages.push(makeMessage(member, response.content, stage));
     addUsage(usage, response.usage);
   }
+  const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+  addUsage(usage, brief.usage);
 
   return {
     stage,
     stageIndex,
     messages,
-    outputs: extractOutputs([...history, ...messages]),
+    outputs: brief.outputs,
     usage
   };
 }
@@ -323,11 +330,14 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
       messages.push(response.message);
       addUsage(usage, response.usage);
     }
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, ...messages] });
+    addUsage(usage, brief.usage);
+    sendEvent(res, "brief", { outputs: brief.outputs });
 
     sendEvent(res, "done", {
       stage,
       stageIndex,
-      outputs: extractOutputs([...history, ...messages]),
+      outputs: brief.outputs,
       usage
     });
   } catch (error) {
@@ -358,12 +368,14 @@ async function summarize({ meeting, history }) {
     user: `${prompt}\n\nConversation:\n${historyToText(history)}`
   });
   const message = makeMessage(member, response.content, stage);
+  const brief = await buildStructuredBrief({ meeting, stage, history: [...history, message] });
+  addUsage(response.usage, brief.usage);
 
   return {
     stage,
     stageIndex: stages.length - 1,
     messages: [message],
-    outputs: extractOutputs([...history, message]),
+    outputs: brief.outputs,
     usage: response.usage
   };
 }
@@ -384,10 +396,13 @@ async function streamSummaryResponse(res, { meeting, history }) {
       history,
       overrideUser: `${prompt}\n\nConversation:\n${historyToText(history)}`
     });
+    const brief = await buildStructuredBrief({ meeting, stage, history: [...history, response.message] });
+    addUsage(response.usage, brief.usage);
+    sendEvent(res, "brief", { outputs: brief.outputs });
     sendEvent(res, "done", {
       stage,
       stageIndex,
-      outputs: extractOutputs([...history, response.message]),
+      outputs: brief.outputs,
       usage: response.usage
     });
   } catch (error) {
@@ -554,6 +569,72 @@ async function callProviderStream({ system, user, onToken }) {
   }
 
   return { usage };
+}
+
+async function buildStructuredBrief({ meeting, stage, history }) {
+  if (!USE_PROVIDER) {
+    return {
+      outputs: extractOutputs(history),
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    };
+  }
+
+  const response = await callProvider({
+    system: [
+      "You are the meeting recorder for Squad Room.",
+      "Turn the discussion into a concise current-state brief.",
+      "Do not continue the debate. Do not write commentary about the conversation.",
+      "Use the same primary language as the discussion.",
+      "Return JSON only. No markdown fences.",
+      "Each array must contain 1-4 short, concrete items.",
+      "Prefer decisions, tasks, measurable risks, and unresolved questions.",
+      "Avoid speaker names unless attribution changes ownership or accountability.",
+      "Avoid vague phrases such as 'continue exploring', 'the direction is clear', or 'this is worthwhile'."
+    ].join("\n"),
+    user: [
+      `Topic: ${meeting.topic}`,
+      `Contest type: ${meeting.contestType}`,
+      `Goal: ${meeting.goal}`,
+      `Constraints: ${meeting.constraints}`,
+      `Current stage: ${stage}`,
+      "",
+      "Return this exact JSON shape:",
+      '{"proposal":[],"actions":[],"risks":[],"questions":[]}',
+      "",
+      "Discussion:",
+      historyToText(history).slice(-14000)
+    ].join("\n")
+  });
+
+  return {
+    outputs: parseStructuredBrief(response.content, history),
+    usage: response.usage
+  };
+}
+
+function parseStructuredBrief(content, history) {
+  try {
+    const match = String(content || "").match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Brief JSON missing.");
+    const parsed = JSON.parse(match[0]);
+    return {
+      proposal: normalizeBriefList(parsed.proposal),
+      actions: normalizeBriefList(parsed.actions),
+      risks: normalizeBriefList(parsed.risks),
+      questions: normalizeBriefList(parsed.questions)
+    };
+  } catch {
+    return extractOutputs(history);
+  }
+}
+
+function normalizeBriefList(items) {
+  const list = Array.isArray(items) ? items : [];
+  const normalized = list
+    .map((item) => truncate(String(item || "").replace(/\s+/g, " ").trim(), 180))
+    .filter(Boolean)
+    .slice(0, 4);
+  return normalized.length ? normalized : ["Pending later stages."];
 }
 
 function buildSummaryPrompt(meeting) {
