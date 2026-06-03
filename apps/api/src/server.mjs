@@ -609,7 +609,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     `Constraints: ${meeting.constraints}`,
     `Project materials: ${meeting.projectMaterials}`,
     `Approved web research: ${meeting.researchContext}`,
-    `Exploration mode: ${meeting.explorationMode ? "deep exploration enabled" : "bounded exploration, maximum two opportunity-tool calls"}`,
+    `Exploration mode: ${meeting.explorationMode ? "deep exploration enabled" : "bounded exploration, maximum two background searches"}`,
     `Current stage: ${stage}`,
     `Stage objective: ${stageObjectives[stage] || "advance the team's shared work product"}`,
     discussionMeta.respondingTo ? `You are responding to: ${discussionMeta.respondingTo}` : "",
@@ -1073,6 +1073,14 @@ function getResearchCalls(meeting, stage) {
 async function startBackgroundTools({ meeting, stage, res, signal }) {
   const calls = getResearchCalls(meeting, stage);
   return Promise.all(calls.map(async (call) => {
+    const groupKey = [
+      stage,
+      call.agentId,
+      "research-note",
+      call.exploration.type,
+      call.exploration.depth,
+      call.exploration.callLimit
+    ].join(":");
     const task = {
       id: randomUUID(),
       name: "Opportunity Research",
@@ -1081,7 +1089,7 @@ async function startBackgroundTools({ meeting, stage, res, signal }) {
       status: call.payload.approved ? "running" : "approval_required",
       visibility: "inbox",
       taskType: "opportunity",
-      budget: call.exploration,
+      budget: { ...call.exploration, groupKey },
       stageCreated: stage
     };
     sendEvent(res, "background_task", task);
@@ -1108,16 +1116,23 @@ function makeInboxItem({ stage, task, activity }) {
   const result = Array.isArray(activity.result) ? activity.result : [];
   return {
     id: randomUUID(),
+    groupKey: task.budget?.groupKey,
     ownerAgent: task.ownerAgent,
     stageCreated: stage,
     impact: stage === "Challenge" ? "decision-changing" : "useful",
-    title: `${task.ownerAgent} completed ${task.name.toLowerCase()}`,
+    title: `${displayAgentName(task.ownerAgent)} research update`,
     summary: result.length ? `${result.length} sources collected for: ${activity.query}` : "No sources collected.",
+    query: activity.query,
+    sourceCount: result.length,
     artifactType: "research-note",
     status: "unread",
     budget: task.budget,
     createdAt: new Date().toISOString()
   };
+}
+
+function displayAgentName(id) {
+  return squad.find((member) => member.id === id)?.name || id || "Agent";
 }
 
 function appendResearchContext(meeting, activity) {

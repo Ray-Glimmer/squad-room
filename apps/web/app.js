@@ -191,8 +191,8 @@ explorationModeToggle.addEventListener("change", () => {
   meetingForm.elements.explorationMode.checked = explorationModeToggle.checked;
   addSystemMessage(
     explorationModeToggle.checked
-      ? "Exploration mode is enabled. Opportunity research may use up to four bounded tool calls per stage."
-      : "Exploration mode is disabled. Opportunity research is limited to two tool calls per stage.",
+      ? "Exploration mode is enabled. Opportunity research may use up to four background searches per stage."
+      : "Exploration mode is disabled. Opportunity research is limited to two background searches per stage.",
     "Workspace"
   );
 });
@@ -1005,7 +1005,7 @@ function renderTools() {
     ? availableTools.map((tool) => `
         <div class="tool-registry-item">
           <strong>${escapeHtml(tool.name)}</strong>
-          <span>${tool.approval === "user" ? "Auto request · approval" : "Automatic"}</span>
+          <span>${tool.approval === "user" ? "Agent-run; may ask approval" : "Agent-run automatically"}</span>
         </div>
       `).join("")
     : '<span class="muted-line">Loading...</span>';
@@ -1054,7 +1054,7 @@ function renderBackgroundTasks() {
           <div>
             <strong>${escapeHtml(task.ownerAgent || "agent")} - ${escapeHtml(task.name || "Background task")}</strong>
             <span>${escapeHtml(task.query || task.message || "")}</span>
-            ${task.budget ? `<span>${escapeHtml(task.budget.depth)} exploration · ${escapeHtml(task.budget.callIndex)}/${escapeHtml(task.budget.callLimit)} tool calls</span>` : ""}
+            ${task.budget ? `<span>${escapeHtml(formatExplorationBudget(task))}</span>` : ""}
           </div>
           <b>${escapeHtml(formatTaskStatus(task.status))}</b>
         </div>
@@ -1095,28 +1095,28 @@ function renderWorkItems() {
 
 function addInboxItem(item) {
   if (!item?.id) return;
-  inboxItems.unshift(item);
-  inboxItems = inboxItems.slice(0, 16);
+  const normalized = normalizeInboxItem(item);
+  const existingIndex = inboxItems.findIndex((entry) => entry.groupKey === normalized.groupKey);
+  if (existingIndex >= 0) {
+    const merged = mergeInboxItems(inboxItems[existingIndex], normalized);
+    inboxItems.splice(existingIndex, 1);
+    inboxItems.unshift(merged);
+  } else {
+    inboxItems.unshift(normalized);
+  }
+  inboxItems = inboxItems.slice(0, 12);
   renderWorkspace();
 }
 
 function renderWorkspace() {
-  inboxCount.textContent = String(inboxItems.filter((item) => item.status !== "archived").length);
-  inboxList.innerHTML = inboxItems.length
-    ? inboxItems.map((item) => `
-        <article class="inbox-item ${escapeHtml(item.impact || "useful")}">
-          <div>
-            <strong>${escapeHtml(item.title || "Workspace update")}</strong>
-            <span>${escapeHtml(item.summary || "")}</span>
-            ${item.budget ? `<span>${escapeHtml(item.budget.depth)} · ${escapeHtml(item.budget.callIndex)}/${escapeHtml(item.budget.callLimit)} calls</span>` : ""}
-          </div>
-          <b>${escapeHtml(item.impact || "note")}</b>
-        </article>
-      `).join("")
+  const visibleInboxItems = inboxItems.filter((item) => item.status !== "archived");
+  inboxCount.textContent = String(visibleInboxItems.length);
+  inboxList.innerHTML = visibleInboxItems.length
+    ? visibleInboxItems.map((item) => renderInboxItem(item)).join("")
     : '<p class="muted-line">Background discoveries will arrive here without interrupting the discussion.</p>';
   agentWorkspaceList.innerHTML = members.map((member) => {
     const assigned = workItems.filter((item) => item.ownerAgent === member.id && item.status !== "archived").length;
-    const discoveries = inboxItems.filter((item) => item.ownerAgent === member.id).length;
+    const discoveries = visibleInboxItems.filter((item) => item.ownerAgent === member.id).length;
     const background = backgroundTasks.filter((item) => item.ownerAgent === member.id && ["queued", "running", "approval_required"].includes(item.status)).length;
     return `
       <div class="agent-workspace">
@@ -1135,6 +1135,141 @@ function renderWorkspace() {
     <div><b>Shared artifacts</b><span>${artifacts} brief artifacts</span></div>
     <div><b>Activity log</b><span>${toolActivities.length} visible tool events</span></div>
   `;
+}
+
+function normalizeInboxItem(item) {
+  const budget = item.budget || {};
+  const query = String(item.query || extractInboxQuery(item.summary) || "").trim();
+  const callIndex = Number(budget.callIndex || item.callIndex || 1);
+  const callLimit = Number(budget.callLimit || item.callLimit || 1);
+  const groupKey = item.groupKey || budget.groupKey || [
+    item.stageCreated || "stage",
+    item.ownerAgent || "agent",
+    item.artifactType || "note",
+    budget.type || "task",
+    budget.depth || "standard",
+    Number.isFinite(callLimit) ? callLimit : 1
+  ].join(":");
+  const isResearchNote = item.artifactType === "research-note" || /completed opportunity research/i.test(item.title || "");
+
+  return {
+    ...item,
+    groupKey,
+    title: isResearchNote ? `${getMemberName(item.ownerAgent)} research update` : item.title || `${getMemberName(item.ownerAgent)} update`,
+    sourceCount: Number.isFinite(Number(item.sourceCount))
+      ? Number(item.sourceCount)
+      : extractSourceCount(item.summary),
+    queries: query ? [query] : [],
+    callIndexes: Number.isFinite(callIndex) ? [callIndex] : [],
+    completedCalls: 1,
+    callLimit: Number.isFinite(callLimit) ? callLimit : 1,
+    rawIds: [item.id],
+    updatedAt: item.createdAt || new Date().toISOString()
+  };
+}
+
+function mergeInboxItems(existing, next) {
+  const rawIds = uniqueStrings([...(existing.rawIds || []), ...(next.rawIds || [])]);
+  const isDuplicate = (existing.rawIds || []).some((id) => (next.rawIds || []).includes(id));
+  const callIndexes = uniqueNumbers([...(existing.callIndexes || []), ...(next.callIndexes || [])]);
+  const queries = uniqueStrings([...(existing.queries || []), ...(next.queries || [])]);
+  return {
+    ...existing,
+    ...next,
+    title: existing.title || next.title,
+    summary: next.summary || existing.summary,
+    queries,
+    callIndexes,
+    completedCalls: callIndexes.length || Math.max(existing.completedCalls || 0, next.completedCalls || 0, 1),
+    callLimit: Math.max(existing.callLimit || 1, next.callLimit || 1),
+    sourceCount: (existing.sourceCount || 0) + (isDuplicate ? 0 : (next.sourceCount || 0)),
+    rawIds,
+    status: existing.status === "archived" ? existing.status : next.status || existing.status,
+    updatedAt: next.updatedAt || next.createdAt || existing.updatedAt
+  };
+}
+
+function renderInboxItem(item) {
+  const sourceCount = item.sourceCount || 0;
+  const searchCount = item.completedCalls || item.queries?.length || 1;
+  const sourceLabel = sourceCount
+    ? `${sourceCount} ${sourceCount === 1 ? "source" : "sources"} collected`
+    : "No sources collected yet";
+  const scope = searchCount > 1
+    ? `across ${searchCount} searches`
+    : item.queries?.[0]
+      ? `for "${truncateForUi(item.queries[0], 72)}"`
+      : "";
+  const queryList = item.queries?.length
+    ? `
+      <details class="inbox-details">
+        <summary>${item.queries.length === 1 ? "Search query" : "Search queries"}</summary>
+        <ul>${item.queries.map((query) => `<li>${escapeHtml(query)}</li>`).join("")}</ul>
+      </details>
+    `
+    : "";
+
+  return `
+    <article class="inbox-item ${escapeHtml(item.impact || "useful")}">
+      <div class="inbox-main">
+        <div class="inbox-title-row">
+          <strong>${escapeHtml(item.title || `${getMemberName(item.ownerAgent)} update`)}</strong>
+          <b class="inbox-badge">${escapeHtml(formatInboxImpact(item.impact))}</b>
+        </div>
+        <span>${escapeHtml([sourceLabel, scope].filter(Boolean).join(" "))}</span>
+        <span>${escapeHtml(formatExplorationBudget(item))}</span>
+        ${queryList}
+      </div>
+    </article>
+  `;
+}
+
+function extractInboxQuery(summary = "") {
+  const match = String(summary).match(/\bfor:\s*([\s\S]+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function extractSourceCount(summary = "") {
+  const match = String(summary).match(/(\d+)\s+sources?/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function uniqueStrings(items) {
+  return [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function uniqueNumbers(items) {
+  return [...new Set(items.map((item) => Number(item)).filter(Number.isFinite))].sort((a, b) => a - b);
+}
+
+function getMemberName(id) {
+  return members.find((member) => member.id === id)?.name || String(id || "Agent");
+}
+
+function formatInboxImpact(impact) {
+  if (impact === "decision-changing") return "Decision";
+  if (impact === "useful") return "Useful";
+  return "Note";
+}
+
+function formatExplorationBudget(item) {
+  const budget = item.budget || item || {};
+  const depth = budget.depth || item.budgetDepth || "";
+  const done = item.completedCalls || (Number.isFinite(Number(budget.callIndex)) ? Number(budget.callIndex) : 0);
+  const limit = item.callLimit || (Number.isFinite(Number(budget.callLimit)) ? Number(budget.callLimit) : 0);
+  const label = depth === "deep"
+    ? "Exploration mode"
+    : depth === "bounded"
+      ? "Standard research"
+      : "Research";
+  if (done && limit) return `${label} - ${Math.min(done, limit)}/${limit} searches complete`;
+  if (limit) return `${label} - up to ${limit} searches`;
+  return label;
+}
+
+function truncateForUi(value, max) {
+  const text = String(value || "");
+  return text.length > max ? `${text.slice(0, max - 1)}...` : text;
 }
 
 function renderUsageBreakdown() {
