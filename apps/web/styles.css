@@ -1131,6 +1131,56 @@ textarea:focus {
   overflow: auto;
 }
 
+.artifact-meta {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trace-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.trace-item {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border-left: 3px solid var(--line);
+  background: #fbfcfe;
+  font-size: 11px;
+}
+
+.trace-item.tool,
+.trace-item.inbox {
+  border-left-color: var(--green);
+}
+
+.trace-item.agent,
+.trace-item.stage {
+  border-left-color: var(--blue);
+}
+
+.trace-item.error {
+  border-left-color: #dc2626;
+}
+
+.trace-item span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.trace-item code {
+  display: block;
+  overflow: hidden;
+  color: #475569;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .output-actions {
   display: flex;
   flex-wrap: wrap;

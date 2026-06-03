@@ -17,7 +17,9 @@ Squad Room，中文名“小队会议室”，是一个给个人使用的 AI 顾
 | 当前简报 | 右侧自动整理当前方向、行动项、风险和开放问题。 |
 | Task Center | 把讨论结论整理成带负责人和交付物的任务。 |
 | Team Inbox | 后台检索结果不会打断讨论，会聚合成发现卡片。 |
+| Run Trace | 关键 agent 发言、工具调用、简报更新和错误会记录成紧凑运行日志。 |
 | 项目资料 | 开会前可以粘贴资料，也可以导入常见格式文件。 |
+| 资料检索 | 项目资料会被切分，并按当前阶段和角色检索相关片段。 |
 | 聊天控制 | 支持 `pause`、`resume`、`next`、`run`、`summary`、`clear queue` 等命令，也能识别明确的自然语言控制意图。 |
 | 本地优先密钥 | 浏览器不保存模型 API key，模型请求通过 API 服务转发。 |
 
@@ -108,7 +110,7 @@ TXT, Markdown, CSV, TSV, JSON, HTML, XML, YAML, YML
 PDF, DOCX, XLS, XLSX
 ```
 
-文件会在浏览器本地解析。打开会议后，提取出的文本会作为会议上下文发送给你配置的 API 服务。单个文件最大 10 MB，合并后的上下文最多保留 12,000 个字符。
+文件会在浏览器本地解析。打开会议后，提取出的文本会作为会议上下文发送给你配置的 API 服务。单个文件最大 10 MB，合并后的上下文最多保留 12,000 个字符。API 会把这些资料切分，并在每次 agent 发言前检索更相关的片段。
 
 ## 小队角色
 
@@ -121,7 +123,14 @@ PDF, DOCX, XLS, XLSX
 | Designer | 打磨体验、故事、视觉和演示流程。 |
 | Critic | 找出脆弱假设和评委可能追问的问题。 |
 
-每个 agent 的技能文件都在 `skills/` 中，可以直接编辑 Markdown。
+每个 agent 的技能文件都在 `skills/` 中，可以直接编辑 Markdown。也支持目录式 skill pack：
+
+```text
+skills/captain/meeting-qa/
+  manifest.json
+  SKILL.md
+  smoke-test.md
+```
 
 ## 工具
 
@@ -138,13 +147,14 @@ PDF, DOCX, XLS, XLSX
 | Create Pitch Outline | 把方案整理成逐页路演故事。 | 不需要 |
 | Web Research | 开启后按阶段检索相关信息。 | 可选 |
 
-这些产物工具借鉴了 office workflow 的思路：每个阶段都留下可读、可检查的工作材料，而不只是聊天记录。自动网页检索默认关闭。开启后，agent 可以按需发送检索关键词。检索结果会加入共享上下文，并在 Team Inbox 中聚合展示。
+这些产物工具借鉴了 office workflow 的思路：每个阶段都留下可读、可检查的工作材料，而不只是聊天记录。产物工具会同时返回适合阅读的 Markdown 和适合后续筛选、导出、渲染的结构化 JSON。自动网页检索默认关闭。开启后，agent 可以按需发送检索关键词。检索结果会加入共享上下文，并在 Team Inbox 中聚合展示。
 
 ## 开发命令
 
 ```bash
 npm run api
 npm run check
+npm run eval
 npm run verify:screenshot
 ```
 
@@ -153,10 +163,11 @@ Windows PowerShell：
 ```powershell
 npm.cmd run api
 npm.cmd run check
+npm.cmd run eval
 npm.cmd run verify:screenshot
 ```
 
-`verify:screenshot` 会调用本机 Edge 或 Chrome 的 headless 模式，生成前端截图用于检查页面。
+`eval` 会运行轻量 harness 检查，覆盖工具注册、skill pack、结构化产物、资料检索，以及可选的本地 API smoke test。`verify:screenshot` 会调用本机 Edge 或 Chrome 的 headless 模式，生成前端截图用于检查页面。
 
 ## GitHub Pages
 

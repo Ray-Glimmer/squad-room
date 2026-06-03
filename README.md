@@ -17,7 +17,9 @@ Open a room, give the squad a topic, and let six teammates discuss, challenge, r
 | Current brief | The right panel keeps a concise brief of direction, actions, risks, and open questions. |
 | Task Center | Decisions can become owner-based action items. |
 | Team Inbox | Background research arrives quietly as grouped discovery cards. |
+| Run Trace | Key agent turns, tool calls, brief updates, and errors are recorded as a compact run log. |
 | Project materials | Paste notes or import common files before opening a room. |
+| Material retrieval | Project materials are chunked and retrieved into prompts by relevance. |
 | Chat controls | Use commands such as `pause`, `resume`, `next`, `run`, `summary`, and `clear queue`. Natural control phrases are also recognized. |
 | Local-first keys | The browser never stores model API keys; model calls go through the API server. |
 
@@ -108,7 +110,7 @@ Supported document formats:
 PDF, DOCX, XLS, XLSX
 ```
 
-Files are parsed locally in the browser. When you open a room, extracted text becomes meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined context is limited to 12,000 characters.
+Files are parsed locally in the browser. When you open a room, extracted text becomes meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined context is limited to 12,000 characters. The API chunks this context and retrieves the most relevant snippets for each agent turn.
 
 ## Agent Roles
 
@@ -121,7 +123,14 @@ Files are parsed locally in the browser. When you open a room, extracted text be
 | Designer | Shapes user experience, story, visuals, and demo flow. |
 | Critic | Finds weak assumptions and judge-style objections. |
 
-Agent skills live in `skills/` as editable Markdown files.
+Agent skills live in `skills/` as editable Markdown files. Directory-style skill packs are also supported:
+
+```text
+skills/captain/meeting-qa/
+  manifest.json
+  SKILL.md
+  smoke-test.md
+```
 
 ## Tools
 
@@ -138,13 +147,14 @@ Agent skills live in `skills/` as editable Markdown files.
 | Create Pitch Outline | Turns the plan into a slide-by-slide story. | No |
 | Web Research | Searches stage-relevant topics when enabled. | Optional |
 
-These artifact tools follow the same spirit as an office workflow: each stage leaves behind a readable work product, not just chat. Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
+These artifact tools follow the same spirit as an office workflow: each stage leaves behind a readable work product, not just chat. Artifact tools return both Markdown for reading and structured JSON for future filtering, export, or richer rendering. Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
 
 ## Developer Commands
 
 ```bash
 npm run api
 npm run check
+npm run eval
 npm run verify:screenshot
 ```
 
@@ -153,10 +163,11 @@ On Windows PowerShell:
 ```powershell
 npm.cmd run api
 npm.cmd run check
+npm.cmd run eval
 npm.cmd run verify:screenshot
 ```
 
-`verify:screenshot` uses local Edge or Chrome headless mode to capture a frontend screenshot.
+`eval` runs lightweight harness checks for tool registration, skill packs, structured artifacts, retrieval, and optional live API smoke tests. `verify:screenshot` uses local Edge or Chrome headless mode to capture a frontend screenshot.
 
 ## GitHub Pages
 

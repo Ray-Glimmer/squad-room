@@ -45,6 +45,7 @@ let workItems = [];
 let squadCapabilities = [];
 let inboxItems = [];
 let materialFiles = [];
+let traceEvents = [];
 
 const setupView = document.querySelector("#setupView");
 const roomView = document.querySelector("#roomView");
@@ -72,6 +73,8 @@ const backgroundTaskList = document.querySelector("#backgroundTaskList");
 const workItemCount = document.querySelector("#workItemCount");
 const workItemList = document.querySelector("#workItemList");
 const usageBreakdown = document.querySelector("#usageBreakdown");
+const traceCount = document.querySelector("#traceCount");
+const traceList = document.querySelector("#traceList");
 const inboxCount = document.querySelector("#inboxCount");
 const inboxList = document.querySelector("#inboxList");
 const agentWorkspaceList = document.querySelector("#agentWorkspaceList");
@@ -98,6 +101,7 @@ renderBackgroundTasks();
 renderWorkItems();
 renderWorkspace();
 renderUsageBreakdown();
+renderTrace();
 renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
@@ -142,6 +146,7 @@ newMeetingButton.addEventListener("click", () => {
   backgroundTasks = [];
   workItems = [];
   inboxItems = [];
+  traceEvents = [];
   pendingUserMessages = [];
   activeUserBatch = [];
   mergeQueuedInterventions = false;
@@ -156,6 +161,7 @@ newMeetingButton.addEventListener("click", () => {
   renderWorkItems();
   renderWorkspace();
   renderUsageBreakdown();
+  renderTrace();
   renderInterruptionQueue();
   setupView.classList.remove("hidden");
   roomView.classList.add("hidden");
@@ -247,6 +253,7 @@ async function startMeeting() {
   backgroundTasks = [];
   workItems = [];
   inboxItems = [];
+  traceEvents = [];
   pendingUserMessages = [];
   activeUserBatch = [];
   mergeQueuedInterventions = false;
@@ -264,6 +271,7 @@ async function startMeeting() {
   renderWorkItems();
   renderWorkspace();
   renderUsageBreakdown();
+  renderTrace();
   renderInterruptionQueue();
 
   await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
@@ -829,26 +837,39 @@ function handleStreamEvent(event) {
   if (event.type === "meta") {
     stageIndex = data.stageIndex ?? stageIndex;
     if (data.stage) stageBadge.textContent = data.stage;
+    addTraceEvent("stage", `Stage started: ${data.stage || stageBadge.textContent}`, { stageIndex });
     return;
   }
-  if (event.type === "message_start") return upsertMessage({ ...data.message, streaming: true });
+  if (event.type === "message_start") {
+    addTraceEvent("agent", `${data.message?.speakerName || data.message?.speakerId || "Agent"} started`, { stage: data.message?.stage });
+    return upsertMessage({ ...data.message, streaming: true });
+  }
   if (event.type === "token") return appendToken(data.id, data.token || "");
-  if (event.type === "message_done") return finalizeMessage({ ...data.message, streaming: false });
+  if (event.type === "message_done") {
+    addTraceEvent("agent", `${data.message?.speakerName || data.message?.speakerId || "Agent"} finished`, { tokens: data.usage?.totalTokens || 0 });
+    return finalizeMessage({ ...data.message, streaming: false });
+  }
   if (event.type === "brief") {
     currentBrief = data.outputs || {};
+    addTraceEvent("brief", "Structured brief refreshed", {
+      items: ["proposal", "actions", "risks", "questions"].reduce((count, key) => count + (Array.isArray(currentBrief[key]) ? currentBrief[key].length : 0), 0)
+    });
     renderOutputs(currentBrief);
     renderWorkspace();
     return;
   }
   if (event.type === "tool_activity") {
+    addTraceEvent("tool", `${data.agentId || "agent"} ran ${data.toolName || data.toolId || "tool"}`, { status: data.status || "completed" });
     addToolActivities([data]);
     return;
   }
   if (event.type === "background_task") {
+    addTraceEvent("background", `${data.ownerAgent || "agent"} ${data.status || "queued"}: ${data.name || "task"}`, { query: data.query || data.message || "" });
     addBackgroundTask(data);
     return;
   }
   if (event.type === "inbox_item") {
+    addTraceEvent("inbox", `${data.ownerAgent || "agent"} added a discovery`, { impact: data.impact || "note" });
     addInboxItem(data);
     return;
   }
@@ -861,9 +882,13 @@ function handleStreamEvent(event) {
     renderWorkspace();
     addToolActivities(data.toolActivities);
     addStageProgressMessage(data.stage);
+    addTraceEvent("done", `${data.stage || "Stage"} completed`, { tokens: data.usage?.totalTokens || 0 });
     return;
   }
-  if (event.type === "error") throw new Error(data.message || "Stream failed.");
+  if (event.type === "error") {
+    addTraceEvent("error", data.message || "Stream failed.", {});
+    throw new Error(data.message || "Stream failed.");
+  }
 }
 
 function buildLocalBrief(messages) {
@@ -1293,6 +1318,34 @@ function renderUsageBreakdown() {
   `;
 }
 
+function addTraceEvent(type, summary, meta = {}) {
+  traceEvents.unshift({
+    id: crypto.randomUUID(),
+    type,
+    summary,
+    meta,
+    at: new Date().toLocaleTimeString()
+  });
+  traceEvents = traceEvents.slice(0, 80);
+  renderTrace();
+}
+
+function renderTrace() {
+  if (!traceCount || !traceList) return;
+  traceCount.textContent = String(traceEvents.length);
+  traceList.innerHTML = traceEvents.length
+    ? traceEvents.map((event) => `
+        <article class="trace-item ${escapeHtml(event.type)}">
+          <div>
+            <strong>${escapeHtml(event.summary)}</strong>
+            <span>${escapeHtml(event.at)} · ${escapeHtml(event.type)}</span>
+          </div>
+          ${Object.keys(event.meta || {}).length ? `<code>${escapeHtml(JSON.stringify(event.meta))}</code>` : ""}
+        </article>
+      `).join("")
+    : '<p class="muted-line">Run trace events will appear here as the room works.</p>';
+}
+
 workItemList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-task-id]");
   if (!button) return;
@@ -1483,6 +1536,14 @@ function summarizeToolResult(activity) {
 }
 
 function renderToolResult(result) {
+  if (result && typeof result === "object" && result.kind === "artifact") {
+    const tableCount = Array.isArray(result.data?.tables) ? result.data.tables.length : 0;
+    const checklistCount = Array.isArray(result.data?.checklists) ? result.data.checklists.length : 0;
+    return `
+      <div class="brief-markdown">${renderMarkdown(result.markdown || "")}</div>
+      <p class="artifact-meta">${escapeHtml(result.artifactType || "artifact")} · ${tableCount} table${tableCount === 1 ? "" : "s"} · ${checklistCount} checklist item${checklistCount === 1 ? "" : "s"}</p>
+    `;
+  }
   if (Array.isArray(result)) {
     return `<ul>${result.map((item) => {
       if (item.url) {

@@ -7,6 +7,7 @@
   "scripts": {
     "api": "node apps/api/src/server.mjs",
     "check": "node --check apps/api/src/server.mjs && node --check apps/web/app.js",
+    "eval": "node scripts/run-evals.mjs",
     "verify:screenshot": "powershell -ExecutionPolicy Bypass -File scripts/verify-page-screenshot.ps1"
   },
   "engines": {

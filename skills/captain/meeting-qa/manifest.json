@@ -1,0 +1,7 @@
+{
+  "id": "meeting-qa",
+  "name": "Meeting QA",
+  "owner": "captain",
+  "version": "0.1.0",
+  "description": "Keep the room's outputs useful, inspectable, and ready to move forward."
+}

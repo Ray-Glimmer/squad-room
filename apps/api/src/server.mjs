@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -19,7 +19,7 @@ const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== 
 const skills = [
   loadSkill("project-lead", "Project Lead", "captain", "skills/captain/project-lead.md"),
   loadSkill("task-orchestration", "Task Orchestration", "captain", "skills/captain/task-orchestration.md"),
-  loadSkill("meeting-qa", "Meeting QA", "captain", "skills/captain/meeting-qa.md"),
+  loadSkill("meeting-qa", "Meeting QA", "captain", "skills/captain/meeting-qa"),
   loadSkill("idea-expansion", "Idea Expansion", "ideator", "skills/ideator/idea-expansion.md"),
   loadSkill("concept-testing", "Concept Testing", "ideator", "skills/ideator/concept-testing.md"),
   loadSkill("option-portfolio", "Option Portfolio", "ideator", "skills/ideator/option-portfolio.md"),
@@ -610,6 +610,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
   const recent = getRecentMessages(history, 8);
   const existing = summarizeExistingWork(history);
   const memberSkills = skills.filter((item) => item.owner === member.id);
+  const retrievedMaterials = retrieveProjectMaterials(meeting, [stage, member.name, userMessage, existing].join("\n"));
   const availableTools = tools
     .filter((tool) => tool.agents.includes(member.id))
     .map((tool) => `${tool.name} (${tool.approval === "none" ? "autonomous low-risk" : "requires approval unless auto research is enabled"})`)
@@ -619,7 +620,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     `Contest type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
-    `Project materials: ${meeting.projectMaterials}`,
+    `Relevant project materials: ${retrievedMaterials}`,
     `Approved web research: ${meeting.researchContext}`,
     `Exploration mode: ${meeting.explorationMode ? "deep exploration enabled" : "bounded exploration, maximum two background searches"}`,
     `Current stage: ${stage}`,
@@ -929,16 +930,62 @@ function buildSystem(member, stage) {
 }
 
 function normalizeMeeting(input = {}) {
+  const projectMaterials = truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000);
   return {
     topic: String(input.topic || "Untitled project").trim(),
     contestType: String(input.contestType || "General").trim(),
     goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
-    projectMaterials: truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000),
+    projectMaterials,
+    projectMaterialChunks: chunkProjectMaterials(projectMaterials),
     researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000),
     autoWebResearch: input.autoWebResearch === true,
     explorationMode: input.explorationMode === true
   };
+}
+
+function chunkProjectMaterials(text, size = 900, overlap = 160) {
+  const source = String(text || "").trim();
+  if (!source || source === "No project materials provided.") return [];
+  const chunks = [];
+  let start = 0;
+  while (start < source.length && chunks.length < 24) {
+    const end = Math.min(source.length, start + size);
+    const content = source.slice(start, end).replace(/\s+/g, " ").trim();
+    if (content) chunks.push({ id: `material-${chunks.length + 1}`, content });
+    if (end >= source.length) break;
+    start = Math.max(0, end - overlap);
+  }
+  return chunks;
+}
+
+function retrieveProjectMaterials(meeting, query, limit = 4) {
+  const chunks = Array.isArray(meeting.projectMaterialChunks) ? meeting.projectMaterialChunks : [];
+  if (!chunks.length) return meeting.projectMaterials || "No project materials provided.";
+  const queryTerms = tokenizeForRetrieval(query);
+  const ranked = chunks
+    .map((chunk) => ({
+      ...chunk,
+      score: scoreChunk(chunk.content, queryTerms)
+    }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit);
+  const selected = ranked.some((chunk) => chunk.score > 0) ? ranked : chunks.slice(0, Math.min(limit, chunks.length));
+  return selected
+    .map((chunk) => `[${chunk.id}] ${chunk.content}`)
+    .join("\n\n");
+}
+
+function tokenizeForRetrieval(text) {
+  const words = String(text || "")
+    .toLowerCase()
+    .match(/[a-z0-9]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
+  return [...new Set(words)].slice(0, 80);
+}
+
+function scoreChunk(content, terms) {
+  const text = String(content || "").toLowerCase();
+  return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
 }
 
 function makeMessage(member, content, stage, discussionMeta = {}) {
@@ -1040,10 +1087,25 @@ function normalizeBriefKey(item) {
 
 function loadSkill(id, name, owner, relativePath) {
   const path = join(repoRoot, ...relativePath.split("/"));
+  if (existsSync(path) && statSync(path).isDirectory()) {
+    const manifestPath = join(path, "manifest.json");
+    const skillPath = join(path, "SKILL.md");
+    const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
+    return {
+      id: manifest.id || id,
+      name: manifest.name || name,
+      owner: manifest.owner || owner,
+      description: manifest.description || "",
+      version: manifest.version || "0.1.0",
+      content: existsSync(skillPath) ? readFileSync(skillPath, "utf8") : ""
+    };
+  }
   return {
     id,
     name,
     owner,
+    description: "",
+    version: "0.1.0",
     content: existsSync(path) ? readFileSync(path, "utf8") : ""
   };
 }
@@ -1267,50 +1329,56 @@ async function executeTool(body = {}, { signal } = {}) {
   }
 
   if (toolId === "create_research_plan") {
+    const markdown = createResearchPlan(payload);
     return {
       ...base,
       status: "completed",
-      result: createResearchPlan(payload)
+      result: buildToolArtifact("research-plan", "Research Plan", payload.stage || "Framing", markdown)
     };
   }
 
   if (toolId === "create_option_board") {
+    const markdown = createOptionBoard(payload);
     return {
       ...base,
       status: "completed",
-      result: createOptionBoard(payload)
+      result: buildToolArtifact("option-board", "Option Board", payload.stage || "Brainstorming", markdown)
     };
   }
 
   if (toolId === "create_feasibility_checklist") {
+    const markdown = createFeasibilityChecklist(payload);
     return {
       ...base,
       status: "completed",
-      result: createFeasibilityChecklist(payload)
+      result: buildToolArtifact("feasibility-checklist", "Feasibility Checklist", payload.stage || "Feasibility", markdown)
     };
   }
 
   if (toolId === "create_risk_register") {
+    const markdown = createRiskRegister(payload);
     return {
       ...base,
       status: "completed",
-      result: createRiskRegister(payload)
+      result: buildToolArtifact("risk-register", "Risk Register", payload.stage || "Challenge", markdown)
     };
   }
 
   if (toolId === "create_decision_matrix") {
+    const markdown = createDecisionMatrix(payload);
     return {
       ...base,
       status: "completed",
-      result: createDecisionMatrix(payload)
+      result: buildToolArtifact("decision-matrix", "Decision Matrix", payload.stage || "Convergence", markdown)
     };
   }
 
   if (toolId === "create_pitch_outline") {
+    const markdown = createPitchOutline(payload);
     return {
       ...base,
       status: "completed",
-      result: createPitchOutline(payload)
+      result: buildToolArtifact("pitch-outline", "Pitch Outline", payload.stage || "Pitch Prep", markdown)
     };
   }
 
@@ -1521,6 +1589,77 @@ function escapeMarkdownCell(value) {
     .replace(/\|/g, "\\|")
     .replace(/\r?\n/g, " ")
     .trim();
+}
+
+function buildToolArtifact(artifactType, title, stage, markdown) {
+  return {
+    kind: "artifact",
+    artifactType,
+    title,
+    stage,
+    markdown,
+    data: parseArtifactMarkdown(markdown)
+  };
+}
+
+function parseArtifactMarkdown(markdown) {
+  const lines = String(markdown || "").split(/\r?\n/);
+  return {
+    sections: parseMarkdownSections(lines),
+    tables: parseMarkdownTables(lines),
+    checklists: parseMarkdownChecklists(lines)
+  };
+}
+
+function parseMarkdownSections(lines) {
+  const sections = [];
+  let current = null;
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+)/);
+    if (heading) {
+      current = { title: heading[1].trim(), lines: [] };
+      sections.push(current);
+      continue;
+    }
+    if (current && line.trim()) current.lines.push(line.trim());
+  }
+  return sections;
+}
+
+function parseMarkdownTables(lines) {
+  const tables = [];
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    if (!isMarkdownTableRow(lines[index]) || !/^\|\s*:?-{3,}/.test(lines[index + 1])) continue;
+    const headers = splitMarkdownTableRow(lines[index]);
+    const rows = [];
+    index += 2;
+    while (index < lines.length && isMarkdownTableRow(lines[index])) {
+      rows.push(splitMarkdownTableRow(lines[index]));
+      index += 1;
+    }
+    tables.push({ headers, rows });
+  }
+  return tables;
+}
+
+function parseMarkdownChecklists(lines) {
+  return lines
+    .map((line) => line.match(/^-\s+\[( |x)\]\s+(.+)/i))
+    .filter(Boolean)
+    .map((match) => ({ checked: match[1].toLowerCase() === "x", text: match[2].trim() }));
+}
+
+function isMarkdownTableRow(line) {
+  return /^\|.*\|$/.test(String(line || "").trim());
+}
+
+function splitMarkdownTableRow(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.replace(/\\\|/g, "|").trim());
 }
 
 async function searchWeb(query, signal) {

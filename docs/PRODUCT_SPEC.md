@@ -20,8 +20,10 @@ Early target users are students, independent makers, competition participants, a
 4. The user can pause an active request and resume from the last completed stage.
 5. User messages join an interruption queue while a visible turn is active; the user can interrupt immediately when needed.
 6. Silent background tasks can continue alongside the visible discussion and publish findings into shared context.
-7. The squad discusses, challenges, and refines the idea.
-8. The room produces a brief: proposal, actions, risks, and judge questions.
+7. Project materials are retrieved into each agent turn by relevance.
+8. The squad discusses, challenges, and refines the idea.
+9. The room produces a brief: proposal, actions, risks, and judge questions.
+10. The room records a compact run trace for debugging and review.
 
 ## Default Squad
 
@@ -64,7 +66,10 @@ Early target users are students, independent makers, competition participants, a
 - Teammates receive role-specific working methods from editable Markdown files.
 - The room displays visible, scrollable tool activity with compact summaries and expandable results.
 - The room displays background-task status separately from the visible discussion.
+- The room displays a compact Run Trace for stage starts, agent turns, tool calls, brief updates, discoveries, and errors.
 - Low-risk local tools run automatically at bounded stages to read explicit context, create a Markdown artifact, and create tasks from the brief.
-- Stage artifact tools create a research plan, option board, feasibility checklist, risk register, decision matrix, and pitch outline as the meeting progresses.
+- Stage artifact tools create a research plan, option board, feasibility checklist, risk register, decision matrix, and pitch outline as the meeting progresses. These tools return Markdown plus structured JSON.
+- Skills can be simple Markdown files or directory-style skill packs with `manifest.json`, `SKILL.md`, and optional smoke tests.
+- A lightweight eval suite checks tool registration, skill pack shape, structured artifact output, retrieval hooks, and optional live API behavior.
 - Agents propose stage-relevant web-search requests. Per-query approval is required by default; users can enable meeting-level automatic web research to send visible queries without asking each time. Results are added to shared research context.
 - Captain handles user interruptions with one routed specialist selected from the message topic.
