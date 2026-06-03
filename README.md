@@ -2,64 +2,75 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Squad Room is a personal AI teammate room for competitions, projects, and serious brainstorming.
+Squad Room is a personal AI advisor team for competitions, projects, and serious brainstorming.
 
-The first open-source version is intentionally small:
+Open a room, give the squad a topic, and let six teammates discuss, challenge, research, summarize, and turn ideas into action.
 
-- A static web app that can be hosted on GitHub Pages.
-- A local Node.js API server that keeps model keys out of the browser.
-- A mock mode that works without any API key.
-- An OpenAI-compatible provider for real multi-agent discussion.
+[Live frontend](https://ray-glimmer.github.io/squad-room_agents/) · [Security](SECURITY.md) · [Architecture](docs/ARCHITECTURE.md)
 
-## Why This Shape
+## What You Get
 
-Multi-agent apps can burn tokens quickly, and browser-side API keys are easy to leak. Squad Room keeps the frontend static and sends all model traffic through a backend gateway.
-
-```text
-GitHub Pages / static frontend
-  -> local or hosted API server
-  -> OpenAI-compatible model provider
-```
+| Area | What it does |
+| --- | --- |
+| Team discussion | Six default agents discuss from different roles: Captain, Ideator, Engineer, Strategist, Designer, and Critic. |
+| Streaming chat | Teammate replies stream in real time and render as safe Markdown. |
+| Current brief | The right panel keeps a concise brief of direction, actions, risks, and open questions. |
+| Task Center | Decisions can become owner-based action items. |
+| Team Inbox | Background research arrives quietly as grouped discovery cards. |
+| Project materials | Paste notes or import common files before opening a room. |
+| Chat controls | Use commands such as `pause`, `resume`, `next`, `run`, `summary`, and `clear queue`. Natural control phrases are also recognized. |
+| Local-first keys | The browser never stores model API keys; model calls go through the API server. |
 
 ## Quick Start
 
 Requirements:
 
 - Node.js 20+
-- No package install is required for the current MVP.
+- No npm install is required for the current MVP.
 
-Start the API server:
+Clone and start the API:
 
 ```bash
+git clone https://github.com/Ray-Glimmer/squad-room_agents.git
+cd squad-room_agents
 cp .env.example apps/api/.env
 npm run api
 ```
 
-Restart the API server after pulling updates, especially when frontend/API endpoints change.
+On Windows PowerShell:
 
-Open the web app:
+```powershell
+Copy-Item .env.example apps/api/.env
+npm.cmd run api
+```
+
+Open the frontend:
 
 ```text
 apps/web/index.html
 ```
 
-By default, the app runs in mock mode if `OPENAI_API_KEY` is empty.
+Or use the hosted static frontend:
 
-Run syntax checks:
-
-```bash
-npm run check
+```text
+https://ray-glimmer.github.io/squad-room_agents/
 ```
 
-On Windows PowerShell, if script execution blocks `npm`, run:
+The frontend uses `http://localhost:8787` by default. You can change the API endpoint on the setup screen.
 
-```powershell
-npm.cmd run check
+## Use Mock Mode
+
+Want to try the interface without a model key? Leave `OPENAI_API_KEY` empty, or set:
+
+```env
+SQUAD_ROOM_MOCK=true
 ```
 
-## Environment Variables
+Mock mode is useful for UI testing, demos, and development.
 
-Copy `.env.example` to `apps/api/.env`.
+## Configure a Model
+
+Copy `.env.example` to `apps/api/.env`, then edit:
 
 ```env
 OPENAI_API_KEY=
@@ -71,71 +82,85 @@ SQUAD_ROOM_MOCK=false
 ```
 
 Any OpenAI-compatible provider can be used by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`.
-Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 
-## Current MVP
+## How to Use
 
-- Create a meeting from a project or competition topic.
-- Talk with six default teammates:
-  - Captain
-  - Ideator
-  - Engineer
-  - Strategist
-  - Designer
-  - Critic
-- Continue the meeting through staged discussion.
-- Run the meeting through all fixed stages and then generate a summary.
-- Pause an active meeting, preserve interrupted streamed output, queue notes while paused, and process those notes before resuming the discussion.
-- Queue user messages while teammates are speaking, with an optional immediate interrupt.
-- Keep user interventions queued until the squad reply succeeds; retry failed sends or merge a new interruption without losing the original context.
-- Control the meeting from chat with commands such as `stop`, `pause`, `resume`, `interrupt`, `next`, `run`, `summary`, `retry`, `clear queue`, and `help`; natural phrases like "pause the meeting" or "stop for a moment" are also recognized when they are clearly control intents.
-- Let silent background research continue alongside the visible discussion.
-- Review role-specific skills and tool permissions for each teammate.
-- Track assigned work items, owners, and deliverable types in Task Center.
-- Inspect token usage by agent and completed tool runs.
-- Keep a shared meeting workspace, quiet Team Inbox, and per-agent workspace summaries.
-- Use bounded opportunity exploration by default, or enable Exploration mode for deeper background research.
-- Let teammates request additional high-value turns while keeping each meeting stage bounded and Captain-led.
-- Ask the squad a follow-up.
-- Generate a final brief.
-- Stream teammate responses as they are generated.
-- Render teammate messages as sanitized Markdown.
-- Generate a structured brief once per stage with a bounded recorder step.
-- Load teammate skills from editable Markdown files.
-- Import common project-material files into the room context.
-- Use visible local-first tools for project context, artifacts, tasks, and approved web-search requests.
-- View extracted outputs: proposal, actions, risks, and judge questions.
+1. Enter a topic, goal, constraints, and optional project materials.
+2. Choose whether agents can run automatic web research.
+3. Open the room.
+4. Let the squad discuss one stage at a time, or use **Run Meeting** to advance automatically.
+5. Pause, interrupt, or add context whenever you need to steer the room.
+6. Use the brief, inbox, and task center to turn the discussion into a plan.
 
 ## Project Materials
 
-You can paste notes or import files before opening a room. Plain-text formats are read directly in the browser: TXT, Markdown, CSV, TSV, JSON, HTML, XML, YAML, and YML. PDF, DOCX, XLS, and XLSX files are also supported through parser libraries loaded on demand from jsDelivr.
+You can paste notes or import files before opening a room.
 
-Files are parsed locally in your browser. The files themselves are not uploaded to jsDelivr. When you open a room, the extracted text becomes part of the meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined text context is limited to 12,000 characters.
+Supported text formats:
 
-## Skills and Tools
+```text
+TXT, Markdown, CSV, TSV, JSON, HTML, XML, YAML, YML
+```
 
-Each teammate has editable Markdown skills under `skills/`. The API injects the matching working methods into that teammate's prompt.
+Supported document formats:
 
-The current tool set is intentionally limited:
+```text
+PDF, DOCX, XLS, XLSX
+```
 
-| Tool | Automatic behavior | Approval |
+Files are parsed locally in the browser. When you open a room, extracted text becomes meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined context is limited to 12,000 characters.
+
+## Agent Roles
+
+| Agent | Focus |
+| --- | --- |
+| Captain | Frames the goal, keeps the meeting moving, and summarizes decisions. |
+| Ideator | Generates fresh angles, hooks, and alternatives. |
+| Engineer | Checks feasibility, implementation, and technical risk. |
+| Strategist | Thinks about users, market, positioning, and value. |
+| Designer | Shapes user experience, story, visuals, and demo flow. |
+| Critic | Finds weak assumptions and judge-style objections. |
+
+Agent skills live in `skills/` as editable Markdown files.
+
+## Tools
+
+| Tool | Runs automatically | Approval |
 | --- | --- | --- |
-| Read Project Context | Captain reads explicitly provided materials during Framing. | None |
-| Create Brief Artifact | Captain refreshes a Markdown brief during Convergence and Summary. | None |
-| Create Tasks | Engineer prepares action items during Action Plan and Summary. | None |
-| Web Research | Agents propose stage-relevant research requests. By default each query waits for approval; enable Automatic web research to let agents send queries without asking each time. Results are added to shared context. | Optional user click |
+| Read Project Context | Reads explicitly provided project materials. | No |
+| Create Brief Artifact | Refreshes the structured meeting brief. | No |
+| Create Tasks | Turns decisions into visible work items. | No |
+| Web Research | Searches stage-relevant topics when enabled. | Optional |
 
-Low-risk tools run automatically at bounded meeting stages and remain visible in Tool Activity. Task Center turns generated action items into visible assignments with an owner and deliverable type. Automatic web research is off by default and can be toggled when creating a meeting or from the room header. When enabled, agents may send visible search queries without per-query approval. Only search queries are sent to the search provider; project materials are not transmitted. This version does not read arbitrary files from your machine or run code.
+Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
 
-Opportunity research is quiet by default: results arrive in Team Inbox instead of interrupting the conversation. Standard mode allows at most two background searches per stage. Exploration mode raises that bounded budget to four searches for deeper research. Team Inbox groups related searches into one discovery card, so users see the finding rather than every internal search event. The shared workspace summarizes mission, decisions, open questions, artifacts, and activity. Agent workspace summaries expose assigned tasks, active background work, and discoveries.
+## Developer Commands
 
-Meeting stages are adaptive rather than rigid scripts. Each stage starts with a small set of required teammates. A silent scheduler may grant additional visible turns only for new evidence, consequential risks, decision changes, or material execution improvements. Each stage is bounded to six visible turns, each teammate can speak at most twice, and Captain closes valuable follow-up exchanges with a decision.
+```bash
+npm run api
+npm run check
+npm run verify:screenshot
+```
+
+On Windows PowerShell:
+
+```powershell
+npm.cmd run api
+npm.cmd run check
+npm.cmd run verify:screenshot
+```
+
+`verify:screenshot` uses local Edge or Chrome headless mode to capture a frontend screenshot.
 
 ## GitHub Pages
 
-The frontend is static. You can publish `apps/web` with GitHub Pages.
+The frontend is static and can be hosted from `apps/web`.
 
-For a public deployment, keep API keys only in the API server environment. Never put real provider keys in frontend code, GitHub Pages variables, or committed files.
+For public deployments:
+
+- Keep model API keys only in the API server environment.
+- Do not put real API keys in frontend code, GitHub Pages variables, or committed files.
+- Point the frontend to your local or hosted API endpoint.
 
 ## Project Layout
 
@@ -148,10 +173,11 @@ squad-room/
   packages/
     shared/       # Shared config reference
   skills/         # Editable teammate working methods
+  scripts/        # Local verification utilities
   .env.example
   SECURITY.md
 ```
 
 ## Status
 
-This is an early MVP scaffold for personal use and developer experimentation.
+Squad Room is an early MVP for personal use and developer experimentation. It is already usable, but the product surface and agent workflow are still evolving.
