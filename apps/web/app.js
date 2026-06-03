@@ -65,6 +65,8 @@ const messageList = document.querySelector("#messageList");
 const squadList = document.querySelector("#squadList");
 const skillList = document.querySelector("#skillList");
 const skillCount = document.querySelector("#skillCount");
+const decisionSnapshot = document.querySelector("#decisionSnapshot");
+const briefCount = document.querySelector("#briefCount");
 const outputs = document.querySelector("#outputs");
 const activityCount = document.querySelector("#activityCount");
 const activityList = document.querySelector("#activityList");
@@ -75,6 +77,7 @@ const workItemList = document.querySelector("#workItemList");
 const usageBreakdown = document.querySelector("#usageBreakdown");
 const traceCount = document.querySelector("#traceCount");
 const traceList = document.querySelector("#traceList");
+const diagnosticCount = document.querySelector("#diagnosticCount");
 const inboxCount = document.querySelector("#inboxCount");
 const inboxList = document.querySelector("#inboxList");
 const agentWorkspaceList = document.querySelector("#agentWorkspaceList");
@@ -102,6 +105,7 @@ renderWorkItems();
 renderWorkspace();
 renderUsageBreakdown();
 renderTrace();
+updateDiagnosticCount();
 renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
@@ -141,6 +145,7 @@ newMeetingButton.addEventListener("click", () => {
   stageIndex = 0;
   totalTokens = 0;
   usageByAgent = {};
+  usageLine.textContent = "Ready";
   currentBrief = {};
   toolActivities = [];
   backgroundTasks = [];
@@ -248,6 +253,7 @@ async function startMeeting() {
   stageIndex = 0;
   totalTokens = 0;
   usageByAgent = {};
+  usageLine.textContent = "Ready";
   currentBrief = {};
   toolActivities = [];
   backgroundTasks = [];
@@ -606,7 +612,7 @@ function applyUsage(usage = {}) {
     usageByAgent[agentId] ||= { totalTokens: 0 };
     usageByAgent[agentId].totalTokens += agentUsage.totalTokens || 0;
   }
-  usageLine.textContent = `${totalTokens.toLocaleString()} tokens`;
+  usageLine.textContent = totalTokens ? "Updated" : "Ready";
   renderUsageBreakdown();
 }
 
@@ -687,23 +693,96 @@ function finalizeMessage(message) {
 }
 
 function renderOutputs(data) {
-  const sections = [
-    ["Current Direction", data.proposal],
-    ["Next Actions", data.actions],
-    ["Risks", data.risks],
-    ["Open Questions", data.questions]
+  const sections = getBriefSections(data);
+  const itemTotal = sections.reduce((count, section) => count + section.items.length, 0);
+  if (briefCount) briefCount.textContent = String(itemTotal);
+  renderDecisionSnapshot(sections);
+  outputs.innerHTML = itemTotal
+    ? sections
+        .filter((section) => section.items.length)
+        .map((section) => renderBriefSection(section))
+        .join("")
+    : `
+      <div class="brief-empty">
+        <strong>No brief yet</strong>
+        <span>Run the meeting and the squad will turn the discussion into a concise decision brief.</span>
+      </div>
+    `;
+}
+
+function getBriefSections(data = {}) {
+  return [
+    { key: "proposal", label: "Direction", empty: "No direction yet.", items: normalizeBriefItems(data.proposal) },
+    { key: "actions", label: "Next Actions", empty: "No actions yet.", items: normalizeBriefItems(data.actions) },
+    { key: "risks", label: "Watch Points", empty: "No risks raised yet.", items: normalizeBriefItems(data.risks) },
+    { key: "questions", label: "Open Questions", empty: "No open questions yet.", items: normalizeBriefItems(data.questions) }
   ];
-  outputs.innerHTML = sections
-    .map(([title, items]) => {
-      const list = Array.isArray(items) && items.length ? items : ["Pending later stages."];
-      return `
-        <section class="output-block">
-          <h4>${title}</h4>
-          <ul>${list.map((item) => `<li><div class="brief-markdown">${renderMarkdown(item)}</div></li>`).join("")}</ul>
-        </section>
-      `;
-    })
+}
+
+function normalizeBriefItems(items) {
+  return Array.isArray(items)
+    ? items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8)
+    : [];
+}
+
+function renderDecisionSnapshot(sections) {
+  if (!decisionSnapshot) return;
+  const direction = sections.find((section) => section.key === "proposal")?.items[0] || "";
+  const action = sections.find((section) => section.key === "actions")?.items[0] || "";
+  const risk = sections.find((section) => section.key === "risks")?.items[0] || "";
+  const question = sections.find((section) => section.key === "questions")?.items[0] || "";
+  const cards = [
+    { label: "Now", value: direction || "Waiting for the first team conclusion." },
+    { label: "Next", value: action || "No concrete action yet." },
+    { label: "Watch", value: risk || "No major watch point yet." },
+    { label: "Ask", value: question || "No open question yet." }
+  ];
+  decisionSnapshot.innerHTML = cards
+    .map((card) => `
+      <article class="snapshot-card">
+        <span>${escapeHtml(card.label)}</span>
+        <p>${escapeHtml(formatBriefPreview(card.value, 180))}</p>
+      </article>
+    `)
     .join("");
+}
+
+function renderBriefSection(section) {
+  const visible = section.items.slice(0, 3);
+  const overflow = section.items.slice(3);
+  return `
+    <section class="output-block">
+      <div class="output-block-header">
+        <h4>${escapeHtml(section.label)}</h4>
+        <span>${section.items.length}</span>
+      </div>
+      <div class="brief-list">
+        ${visible.map((item) => renderBriefItem(item)).join("")}
+      </div>
+      ${overflow.length ? `
+        <details class="brief-more">
+          <summary>${overflow.length} more</summary>
+          <div class="brief-list">${overflow.map((item) => renderBriefItem(item)).join("")}</div>
+        </details>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderBriefItem(item) {
+  const attribution = splitBriefAttribution(item);
+  return `
+    <article class="brief-item">
+      ${attribution.source ? `<span class="brief-source">${escapeHtml(attribution.source)}</span>` : ""}
+      <div class="brief-markdown">${renderMarkdown(attribution.text)}</div>
+    </article>
+  `;
+}
+
+function splitBriefAttribution(item) {
+  const match = String(item || "").match(/^([A-Za-z][\w -]{1,32}):\s+([\s\S]+)$/);
+  if (!match) return { source: "", text: item };
+  return { source: match[1], text: match[2] };
 }
 
 async function refreshConfig() {
@@ -1052,6 +1131,7 @@ function addToolActivities(activities = []) {
   renderActivities();
   renderWorkspace();
   renderUsageBreakdown();
+  updateDiagnosticCount();
 }
 
 function renderActivities() {
@@ -1059,6 +1139,7 @@ function renderActivities() {
   activityList.innerHTML = toolActivities.length
     ? toolActivities.map((activity) => renderActivity(activity)).join("")
     : '<p class="muted-line">No tool activity yet.</p>';
+  updateDiagnosticCount();
 }
 
 function addBackgroundTask(task) {
@@ -1069,6 +1150,7 @@ function addBackgroundTask(task) {
   backgroundTasks = backgroundTasks.slice(0, 20);
   renderBackgroundTasks();
   renderWorkspace();
+  updateDiagnosticCount();
 }
 
 function renderBackgroundTasks() {
@@ -1085,6 +1167,7 @@ function renderBackgroundTasks() {
         </div>
       `).join("")
     : '<p class="muted-line">No background tasks yet.</p>';
+  updateDiagnosticCount();
 }
 
 function addWorkItems(items = []) {
@@ -1137,7 +1220,7 @@ function renderWorkspace() {
   const visibleInboxItems = inboxItems.filter((item) => item.status !== "archived");
   inboxCount.textContent = String(visibleInboxItems.length);
   inboxList.innerHTML = visibleInboxItems.length
-    ? visibleInboxItems.map((item) => renderInboxItem(item)).join("")
+    ? visibleInboxItems.slice(0, 6).map((item) => renderInboxItem(item)).join("")
     : '<p class="muted-line">Background discoveries will arrive here without interrupting the discussion.</p>';
   agentWorkspaceList.innerHTML = members.map((member) => {
     const assigned = workItems.filter((item) => item.ownerAgent === member.id && item.status !== "archived").length;
@@ -1167,7 +1250,12 @@ function normalizeInboxItem(item) {
   const query = String(item.query || extractInboxQuery(item.summary) || "").trim();
   const callIndex = Number(budget.callIndex || item.callIndex || 1);
   const callLimit = Number(budget.callLimit || item.callLimit || 1);
-  const groupKey = item.groupKey || budget.groupKey || [
+  const isResearchNote = item.artifactType === "research-note" || /completed opportunity research/i.test(item.title || "");
+  const groupKey = isResearchNote ? [
+    item.stageCreated || "stage",
+    item.ownerAgent || "agent",
+    "research-note"
+  ].join(":") : item.groupKey || budget.groupKey || [
     item.stageCreated || "stage",
     item.ownerAgent || "agent",
     item.artifactType || "note",
@@ -1175,12 +1263,11 @@ function normalizeInboxItem(item) {
     budget.depth || "standard",
     Number.isFinite(callLimit) ? callLimit : 1
   ].join(":");
-  const isResearchNote = item.artifactType === "research-note" || /completed opportunity research/i.test(item.title || "");
 
   return {
     ...item,
     groupKey,
-    title: isResearchNote ? `${getMemberName(item.ownerAgent)} research update` : item.title || `${getMemberName(item.ownerAgent)} update`,
+    title: isResearchNote ? `${getMemberName(item.ownerAgent)} research brief` : item.title || `${getMemberName(item.ownerAgent)} update`,
     sourceCount: Number.isFinite(Number(item.sourceCount))
       ? Number(item.sourceCount)
       : extractSourceCount(item.summary),
@@ -1218,17 +1305,14 @@ function renderInboxItem(item) {
   const sourceCount = item.sourceCount || 0;
   const searchCount = item.completedCalls || item.queries?.length || 1;
   const sourceLabel = sourceCount
-    ? `${sourceCount} ${sourceCount === 1 ? "source" : "sources"} collected`
-    : "No sources collected yet";
-  const scope = searchCount > 1
-    ? `across ${searchCount} searches`
-    : item.queries?.[0]
-      ? `for "${truncateForUi(item.queries[0], 72)}"`
-      : "";
+    ? `${sourceCount} ${sourceCount === 1 ? "source" : "sources"}`
+    : "No sources";
+  const scope = `${searchCount} ${searchCount === 1 ? "search" : "searches"}`;
+  const latestQuery = item.queries?.[0] ? truncateForUi(item.queries[0], 92) : "";
   const queryList = item.queries?.length
     ? `
       <details class="inbox-details">
-        <summary>${item.queries.length === 1 ? "Search query" : "Search queries"}</summary>
+        <summary>${item.queries.length === 1 ? "View query" : `View ${item.queries.length} queries`}</summary>
         <ul>${item.queries.map((query) => `<li>${escapeHtml(query)}</li>`).join("")}</ul>
       </details>
     `
@@ -1241,8 +1325,8 @@ function renderInboxItem(item) {
           <strong>${escapeHtml(item.title || `${getMemberName(item.ownerAgent)} update`)}</strong>
           <b class="inbox-badge">${escapeHtml(formatInboxImpact(item.impact))}</b>
         </div>
-        <span>${escapeHtml([sourceLabel, scope].filter(Boolean).join(" "))}</span>
-        <span>${escapeHtml(formatExplorationBudget(item))}</span>
+        <span>${escapeHtml(`${sourceLabel} from ${scope}`)}</span>
+        ${latestQuery ? `<p>${escapeHtml(latestQuery)}</p>` : ""}
         ${queryList}
       </div>
     </article>
@@ -1273,7 +1357,7 @@ function getMemberName(id) {
 
 function formatInboxImpact(impact) {
   if (impact === "decision-changing") return "Decision";
-  if (impact === "useful") return "Useful";
+  if (impact === "useful") return "Research";
   return "Note";
 }
 
@@ -1283,11 +1367,11 @@ function formatExplorationBudget(item) {
   const done = item.completedCalls || (Number.isFinite(Number(budget.callIndex)) ? Number(budget.callIndex) : 0);
   const limit = item.callLimit || (Number.isFinite(Number(budget.callLimit)) ? Number(budget.callLimit) : 0);
   const label = depth === "deep"
-    ? "Exploration mode"
+    ? "Exploration"
     : depth === "bounded"
-      ? "Standard research"
+      ? "Standard"
       : "Research";
-  if (done && limit) return `${label} - ${Math.min(done, limit)}/${limit} searches complete`;
+  if (done && limit) return `${label} - ${Math.min(done, limit)}/${limit} searches`;
   if (limit) return `${label} - up to ${limit} searches`;
   return label;
 }
@@ -1295,6 +1379,19 @@ function formatExplorationBudget(item) {
 function truncateForUi(value, max) {
   const text = String(value || "");
   return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function formatBriefPreview(value, max) {
+  return truncateForUi(
+    String(value || "")
+      .replace(/^([A-Za-z][\w -]{1,32}):\s+/, "")
+      .replace(/\*\*/g, "")
+      .replace(/`/g, "")
+      .replace(/^\s*[-*]\s+/, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    max
+  );
 }
 
 function renderUsageBreakdown() {
@@ -1316,6 +1413,7 @@ function renderUsageBreakdown() {
     <h4>Tools</h4>
     <ul>${toolRows || "<li><span>No tool usage yet.</span></li>"}</ul>
   `;
+  updateDiagnosticCount();
 }
 
 function addTraceEvent(type, summary, meta = {}) {
@@ -1334,16 +1432,28 @@ function renderTrace() {
   if (!traceCount || !traceList) return;
   traceCount.textContent = String(traceEvents.length);
   traceList.innerHTML = traceEvents.length
-    ? traceEvents.map((event) => `
+    ? traceEvents.slice(0, 30).map((event) => `
         <article class="trace-item ${escapeHtml(event.type)}">
           <div>
             <strong>${escapeHtml(event.summary)}</strong>
-            <span>${escapeHtml(event.at)} · ${escapeHtml(event.type)}</span>
+            <span>${escapeHtml(event.at)} - ${escapeHtml(event.type)}</span>
           </div>
-          ${Object.keys(event.meta || {}).length ? `<code>${escapeHtml(JSON.stringify(event.meta))}</code>` : ""}
+          ${Object.keys(event.meta || {}).length ? `
+            <details class="trace-meta">
+              <summary>Details</summary>
+              <code>${escapeHtml(JSON.stringify(event.meta))}</code>
+            </details>
+          ` : ""}
         </article>
       `).join("")
     : '<p class="muted-line">Run trace events will appear here as the room works.</p>';
+  updateDiagnosticCount();
+}
+
+function updateDiagnosticCount() {
+  if (!diagnosticCount) return;
+  const count = toolActivities.length + backgroundTasks.length + traceEvents.length;
+  diagnosticCount.textContent = String(count);
 }
 
 workItemList.addEventListener("click", (event) => {

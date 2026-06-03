@@ -29,14 +29,38 @@ if (Test-Path $outputPath) {
   Remove-Item -LiteralPath $outputPath -Force
 }
 
-& $browser `
-  --headless=new `
-  --disable-gpu `
-  --no-first-run `
-  --no-default-browser-check `
-  "--window-size=$Width,$Height" `
-  "--screenshot=$outputPath" `
-  $Url | Out-Null
+$attempts = @(
+  @("--headless=new", "--disable-gpu"),
+  @("--headless=new", "--disable-gpu", "--disable-gpu-compositing", "--disable-accelerated-2d-canvas", "--disable-features=UseSkiaRenderer,VizDisplayCompositor"),
+  @("--headless=new", "--use-gl=swiftshader", "--use-angle=swiftshader", "--disable-accelerated-2d-canvas"),
+  @("--headless", "--disable-gpu", "--single-process", "--disable-dev-shm-usage")
+)
+
+foreach ($attempt in $attempts) {
+  if (Test-Path $outputPath) {
+    Remove-Item -LiteralPath $outputPath -Force
+  }
+  $profileDir = Join-Path ([System.IO.Path]::GetTempPath()) ("squad-room-browser-" + [System.Guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Path $profileDir | Out-Null
+  $args = @(
+    $attempt
+    "--no-first-run"
+    "--no-default-browser-check"
+    "--disable-extensions"
+    "--user-data-dir=$profileDir"
+    "--window-size=$Width,$Height"
+    "--screenshot=$outputPath"
+    $Url
+  )
+  $process = Start-Process -FilePath $browser -ArgumentList $args -PassThru -WindowStyle Hidden
+  if (-not $process.WaitForExit(15000)) {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+  }
+  Remove-Item -LiteralPath $profileDir -Recurse -Force -ErrorAction SilentlyContinue
+  if (Test-Path $outputPath) {
+    break
+  }
+}
 
 if (-not (Test-Path $outputPath)) {
   throw "Screenshot was not created: $outputPath"

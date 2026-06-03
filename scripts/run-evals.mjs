@@ -39,7 +39,12 @@ check("squad config references new tools", requiredTools.some((id) => JSON.strin
 check("server implements artifact tools", requiredTools.every((id) => server.includes(`toolId === "${id}"`) || server.includes(`toolId: "${id}"`)));
 check("server supports skill pack directories", server.includes("manifest.json") && server.includes("SKILL.md"));
 check("server has project-material retrieval", server.includes("retrieveProjectMaterials") && server.includes("chunkProjectMaterials"));
-check("frontend renders run trace", read("apps/web/app.js").includes("renderTrace") && read("apps/web/index.html").includes("Run Trace"));
+check(
+  "frontend renders diagnostic run trace",
+  read("apps/web/app.js").includes("renderTrace")
+    && read("apps/web/index.html").includes("Diagnostics")
+    && read("apps/web/index.html").includes("Run trace")
+);
 check("frontend renders structured artifacts", read("apps/web/app.js").includes('result.kind === "artifact"'));
 
 const skillPackDir = join(root, "skills", "captain", "meeting-qa");
