@@ -88,6 +88,7 @@ Set `SQUAD_ROOM_MOCK=true` to force mock mode while testing streaming UI.
 - Pause an active meeting, preserve interrupted streamed output, queue notes while paused, and process those notes before resuming the discussion.
 - Queue user messages while teammates are speaking, with an optional immediate interrupt.
 - Keep user interventions queued until the squad reply succeeds; retry failed sends or merge a new interruption without losing the original context.
+- Control the meeting from chat with commands such as `stop`, `pause`, `resume`, `interrupt`, `next`, `run`, `summary`, `retry`, `clear queue`, and `help`.
 - Let silent background research continue alongside the visible discussion.
 - Review role-specific skills and tool permissions for each teammate.
 - Track assigned work items, owners, and deliverable types in Task Center.

@@ -162,16 +162,7 @@ newMeetingButton.addEventListener("click", () => {
 });
 
 interruptNowButton.addEventListener("click", async () => {
-  if (!getWaitingUserMessages().length) return;
-  if (!activeStreamController) {
-    await drainUserQueue();
-    await resumeDeferredStreamRequest();
-    await resumePendingAutomaticRun();
-    return;
-  }
-  mergeQueuedInterventions = true;
-  abortReason = "user_interruption";
-  activeStreamController.abort();
+  await interruptForQueuedMessages();
 });
 
 pauseButton.addEventListener("click", async () => {
@@ -179,32 +170,7 @@ pauseButton.addEventListener("click", async () => {
     pauseMeeting();
     return;
   }
-  const shouldResumeAutomaticRun = resumeAutomaticRun;
-  const request = pausedStreamRequest;
-  isPaused = false;
-  resumeAutomaticRun = false;
-  pausedStreamRequest = null;
-  renderPauseState();
-  addSystemMessage("Meeting resumed.", "Control");
-  const queueCleared = await drainUserQueue({ merge: true });
-  if (!queueCleared) {
-    resumeAutomaticRun = shouldResumeAutomaticRun;
-    if (request && !shouldResumeAutomaticRun) deferredStreamRequest = request;
-    return;
-  }
-  if (shouldResumeAutomaticRun) {
-    await resumeAutomaticMeeting();
-    return;
-  }
-  if (request) {
-    try {
-      await postStream(request.path, buildResumePayload(request.payload, history));
-      await drainUserQueue();
-    } catch (error) {
-      if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
-    }
-  }
-  await resumeDeferredStreamRequest();
+  await resumeMeetingFromPause();
 });
 
 autoResearchToggle.addEventListener("change", () => {
@@ -242,12 +208,7 @@ materialFileInput.addEventListener("change", async () => {
 });
 
 continueButton.addEventListener("click", async () => {
-  if (isPaused || activeStreamController) return;
-  await withBusy(continueButton, "Thinking", async () => {
-    await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
-  });
-  await drainUserQueue();
-  await resumeDeferredStreamRequest();
+  await runNextStageCommand();
 });
 
 runMeetingButton.addEventListener("click", async () => {
@@ -255,12 +216,7 @@ runMeetingButton.addEventListener("click", async () => {
 });
 
 summaryButton.addEventListener("click", async () => {
-  if (isPaused || activeStreamController) return;
-  await withBusy(summaryButton, "Summarizing", async () => {
-    await postStream("/api/meeting/summary/stream", { meeting, history });
-  });
-  await drainUserQueue();
-  await resumeDeferredStreamRequest();
+  await runSummaryCommand();
 });
 
 messageForm.addEventListener("submit", async (event) => {
@@ -268,6 +224,7 @@ messageForm.addEventListener("submit", async (event) => {
   const message = messageInput.value.trim();
   if (!message) return;
   messageInput.value = "";
+  if (await handleChatCommand(message)) return;
   pendingUserMessages.push({ id: crypto.randomUUID(), message });
   renderInterruptionQueue();
   if (isPaused) return;
@@ -329,6 +286,163 @@ async function runMeeting() {
     if (!isPaused) addSystemMessage("Meeting complete. The squad has reached a final brief for this run.", "Complete");
   });
   isRunningMeeting = false;
+}
+
+async function handleChatCommand(rawMessage) {
+  const command = parseChatCommand(rawMessage);
+  if (!command) return false;
+
+  if (command === "help") {
+    addSystemMessage("Chat controls: stop/pause, resume, interrupt, retry, next, run, summary, clear queue, help. Prefix with / if you want to be explicit.", "Command");
+    return true;
+  }
+  if (command === "pause") {
+    pauseMeeting();
+    return true;
+  }
+  if (command === "resume") {
+    if (!isPaused) {
+      addSystemMessage("Meeting is not paused.", "Command");
+      return true;
+    }
+    await resumeMeetingFromPause();
+    return true;
+  }
+  if (command === "interrupt") {
+    if (!activeStreamController) {
+      addSystemMessage("No active teammate response to interrupt.", "Command");
+      return true;
+    }
+    if (!getWaitingUserMessages().length) {
+      pauseMeeting();
+      return true;
+    }
+    await interruptForQueuedMessages();
+    return true;
+  }
+  if (command === "retry") {
+    await drainUserQueue();
+    await resumeDeferredStreamRequest();
+    await resumePendingAutomaticRun();
+    return true;
+  }
+  if (command === "next") {
+    await runNextStageCommand();
+    return true;
+  }
+  if (command === "run") {
+    await runMeeting();
+    return true;
+  }
+  if (command === "summary") {
+    await runSummaryCommand();
+    return true;
+  }
+  if (command === "clear") {
+    const count = pendingUserMessages.length;
+    pendingUserMessages = [];
+    activeUserBatch = [];
+    mergeQueuedInterventions = false;
+    renderInterruptionQueue();
+    addSystemMessage(`${count} queued ${count === 1 ? "message" : "messages"} cleared.`, "Command");
+    return true;
+  }
+  return false;
+}
+
+function parseChatCommand(rawMessage) {
+  const value = String(rawMessage || "").trim().toLowerCase();
+  if (!value) return "";
+  const explicit = value.startsWith("/");
+  const token = explicit ? value.slice(1).trim().split(/\s+/)[0] : value;
+  const exactCommands = new Map([
+    ["stop", "pause"],
+    ["pause", "pause"],
+    ["halt", "pause"],
+    ["暂停", "pause"],
+    ["停止", "pause"],
+    ["resume", "resume"],
+    ["continue", "resume"],
+    ["继续", "resume"],
+    ["恢复", "resume"],
+    ["interrupt", "interrupt"],
+    ["打断", "interrupt"],
+    ["retry", "retry"],
+    ["重试", "retry"],
+    ["next", "next"],
+    ["下一步", "next"],
+    ["run", "run"],
+    ["继续会议", "run"],
+    ["summary", "summary"],
+    ["summarize", "summary"],
+    ["总结", "summary"],
+    ["clear", "clear"],
+    ["clear queue", "clear"],
+    ["清空队列", "clear"],
+    ["help", "help"],
+    ["?", "help"]
+  ]);
+  return exactCommands.get(token) || "";
+}
+
+async function interruptForQueuedMessages() {
+  if (!getWaitingUserMessages().length) return;
+  if (!activeStreamController) {
+    await drainUserQueue();
+    await resumeDeferredStreamRequest();
+    await resumePendingAutomaticRun();
+    return;
+  }
+  mergeQueuedInterventions = true;
+  abortReason = "user_interruption";
+  activeStreamController.abort();
+}
+
+async function resumeMeetingFromPause() {
+  const shouldResumeAutomaticRun = resumeAutomaticRun;
+  const request = pausedStreamRequest;
+  isPaused = false;
+  resumeAutomaticRun = false;
+  pausedStreamRequest = null;
+  renderPauseState();
+  addSystemMessage("Meeting resumed.", "Control");
+  const queueCleared = await drainUserQueue({ merge: true });
+  if (!queueCleared) {
+    resumeAutomaticRun = shouldResumeAutomaticRun;
+    if (request && !shouldResumeAutomaticRun) deferredStreamRequest = request;
+    return;
+  }
+  if (shouldResumeAutomaticRun) {
+    await resumeAutomaticMeeting();
+    return;
+  }
+  if (request) {
+    try {
+      await postStream(request.path, buildResumePayload(request.payload, history));
+      await drainUserQueue();
+    } catch (error) {
+      if (error.name !== "AbortError") addSystemMessage(error.message || "Something went wrong.", "Error");
+    }
+  }
+  await resumeDeferredStreamRequest();
+}
+
+async function runNextStageCommand() {
+  if (isPaused || activeStreamController) return;
+  await withBusy(continueButton, "Thinking", async () => {
+    await postStream("/api/meeting/continue/stream", { meeting, history, stageIndex });
+  });
+  await drainUserQueue();
+  await resumeDeferredStreamRequest();
+}
+
+async function runSummaryCommand() {
+  if (isPaused || activeStreamController) return;
+  await withBusy(summaryButton, "Summarizing", async () => {
+    await postStream("/api/meeting/summary/stream", { meeting, history });
+  });
+  await drainUserQueue();
+  await resumeDeferredStreamRequest();
 }
 
 async function drainUserQueue({ merge = false } = {}) {
