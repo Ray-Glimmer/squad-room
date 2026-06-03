@@ -289,7 +289,8 @@ async function runMeeting() {
 }
 
 async function handleChatCommand(rawMessage) {
-  const command = parseChatCommand(rawMessage);
+  const intent = parseChatIntent(rawMessage);
+  const command = intent.command;
   if (!command) return false;
 
   if (command === "help") {
@@ -350,9 +351,9 @@ async function handleChatCommand(rawMessage) {
   return false;
 }
 
-function parseChatCommand(rawMessage) {
+function parseChatIntent(rawMessage) {
   const value = String(rawMessage || "").trim().toLowerCase();
-  if (!value) return "";
+  if (!value) return { command: "", confidence: "none" };
   const explicit = value.startsWith("/");
   const token = explicit ? value.slice(1).trim().split(/\s+/)[0] : value;
   const exactCommands = new Map([
@@ -382,7 +383,39 @@ function parseChatCommand(rawMessage) {
     ["help", "help"],
     ["?", "help"]
   ]);
-  return exactCommands.get(token) || "";
+  const exact = exactCommands.get(token);
+  if (exact) return { command: exact, confidence: explicit ? "explicit" : "high" };
+  if (explicit) return { command: "", confidence: "none" };
+
+  const normalized = value.replace(/[，。！？!?.、\s]/g, "");
+  if (looksLikeDiscussionContent(normalized)) return { command: "", confidence: "none" };
+  const semantic = parseSemanticControlIntent(normalized);
+  return semantic ? { command: semantic, confidence: "high" } : { command: "", confidence: "none" };
+}
+
+function looksLikeDiscussionContent(text) {
+  if (text.length > 18) return true;
+  return [
+    "功能", "逻辑", "设计", "问题", "需求", "实现", "策略", "方案", "机制", "按钮",
+    "怎么", "如何", "为什么", "原因", "分析", "讨论", "优化", "开发", "代码",
+    "stoploss", "停止使用", "暂停功能"
+  ].some((keyword) => text.includes(keyword));
+}
+
+function parseSemanticControlIntent(text) {
+  const commandPatterns = [
+    ["pause", ["你先停", "先停", "停一下", "停一停", "先别说", "别说了", "暂停一下", "暂停一下会议", "暂停会议", "会议暂停", "先暂停", "等一下", "等一等", "等等", "先等"]],
+    ["resume", ["继续吧", "继续说", "接着说", "接着来", "可以继续", "恢复会议", "继续会议", "开始继续"]],
+    ["summary", ["总结一下", "帮我总结", "先总结", "生成总结", "做个总结"]],
+    ["next", ["下一阶段", "进入下一阶段", "下一步吧", "推进到下一步", "继续下一步"]],
+    ["run", ["跑完整会议", "继续跑", "自动推进", "跑完会议"]],
+    ["retry", ["再试一下", "重新发送", "重试一下"]],
+    ["clear", ["清空队列", "清掉队列", "取消排队"]]
+  ];
+  for (const [command, patterns] of commandPatterns) {
+    if (patterns.some((pattern) => text === pattern || text.includes(pattern))) return command;
+  }
+  return "";
 }
 
 async function interruptForQueuedMessages() {
