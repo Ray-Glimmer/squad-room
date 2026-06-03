@@ -1,16 +1,28 @@
 {
   "skills": [
     { "id": "project-lead", "name": "Project Lead", "owner": "captain" },
+    { "id": "meeting-qa", "name": "Meeting QA", "owner": "captain" },
     { "id": "idea-expansion", "name": "Idea Expansion", "owner": "ideator" },
+    { "id": "option-portfolio", "name": "Option Portfolio", "owner": "ideator" },
     { "id": "technical-review", "name": "Technical Review", "owner": "engineer" },
+    { "id": "prototype-spec", "name": "Prototype Spec", "owner": "engineer" },
     { "id": "competitor-research", "name": "Competitor Research", "owner": "strategist" },
+    { "id": "evidence-plan", "name": "Evidence Plan", "owner": "strategist" },
     { "id": "demo-story", "name": "Demo Story", "owner": "designer" },
-    { "id": "pitch-review", "name": "Pitch Review", "owner": "critic" }
+    { "id": "presentation-asset-plan", "name": "Presentation Asset Plan", "owner": "designer" },
+    { "id": "pitch-review", "name": "Pitch Review", "owner": "critic" },
+    { "id": "quality-gate", "name": "Quality Gate", "owner": "critic" }
   ],
   "tools": [
     { "id": "read_project_file", "name": "Read Project Context", "approval": "none", "trigger": "automatic" },
     { "id": "write_artifact", "name": "Create Brief Artifact", "approval": "none", "trigger": "automatic" },
     { "id": "update_task", "name": "Create Tasks", "approval": "none", "trigger": "automatic" },
+    { "id": "create_research_plan", "name": "Create Research Plan", "approval": "none", "trigger": "automatic" },
+    { "id": "create_option_board", "name": "Create Option Board", "approval": "none", "trigger": "automatic" },
+    { "id": "create_feasibility_checklist", "name": "Create Feasibility Checklist", "approval": "none", "trigger": "automatic" },
+    { "id": "create_risk_register", "name": "Create Risk Register", "approval": "none", "trigger": "automatic" },
+    { "id": "create_decision_matrix", "name": "Create Decision Matrix", "approval": "none", "trigger": "automatic" },
+    { "id": "create_pitch_outline", "name": "Create Pitch Outline", "approval": "none", "trigger": "automatic" },
     { "id": "web_search", "name": "Web Research", "approval": "user", "trigger": "automatic_request" }
   ]
 }

@@ -65,5 +65,6 @@ Early target users are students, independent makers, competition participants, a
 - The room displays visible, scrollable tool activity with compact summaries and expandable results.
 - The room displays background-task status separately from the visible discussion.
 - Low-risk local tools run automatically at bounded stages to read explicit context, create a Markdown artifact, and create tasks from the brief.
+- Stage artifact tools create a research plan, option board, feasibility checklist, risk register, decision matrix, and pitch outline as the meeting progresses.
 - Agents propose stage-relevant web-search requests. Per-query approval is required by default; users can enable meeting-level automatic web research to send visible queries without asking each time. Results are added to shared research context.
 - Captain handles user interruptions with one routed specialist selected from the message topic.

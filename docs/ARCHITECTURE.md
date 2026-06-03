@@ -48,13 +48,19 @@ Skills live under `skills/<teammate>/`. Each skill is a Markdown working method 
 ## Tool Registry
 
 ```text
-read_project_file  Read only pasted project materials
-write_artifact     Convert current brief to Markdown
-update_task        Convert brief actions to local todo items
-web_search         Fetch search results into shared context after approval, or automatically when the meeting toggle is enabled
+read_project_file             Read only pasted project materials
+write_artifact                Convert current brief to Markdown
+update_task                   Convert brief actions to local todo items
+create_research_plan          Produce a research plan from framing questions
+create_option_board           Produce a comparable option board
+create_feasibility_checklist  Produce technical and execution checks
+create_risk_register          Produce a risk, mitigation, and evidence table
+create_decision_matrix        Produce a convergence comparison matrix
+create_pitch_outline          Produce a pitch or demo outline
+web_search                    Fetch search results into shared context after approval, or automatically when the meeting toggle is enabled
 ```
 
-The MVP does not read arbitrary local paths, run code, or perform background web search.
+The local artifact tools are deterministic Markdown generators inspired by office-style workflows: they create inspectable work products without reading arbitrary local paths, running code, or controlling desktop applications. Web search remains the only external-data tool.
 
 ## Streaming Events
 

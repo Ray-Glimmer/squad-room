@@ -19,22 +19,34 @@ const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== 
 const skills = [
   loadSkill("project-lead", "Project Lead", "captain", "skills/captain/project-lead.md"),
   loadSkill("task-orchestration", "Task Orchestration", "captain", "skills/captain/task-orchestration.md"),
+  loadSkill("meeting-qa", "Meeting QA", "captain", "skills/captain/meeting-qa.md"),
   loadSkill("idea-expansion", "Idea Expansion", "ideator", "skills/ideator/idea-expansion.md"),
   loadSkill("concept-testing", "Concept Testing", "ideator", "skills/ideator/concept-testing.md"),
+  loadSkill("option-portfolio", "Option Portfolio", "ideator", "skills/ideator/option-portfolio.md"),
   loadSkill("technical-review", "Technical Review", "engineer", "skills/engineer/technical-review.md"),
   loadSkill("delivery-planning", "Delivery Planning", "engineer", "skills/engineer/delivery-planning.md"),
+  loadSkill("prototype-spec", "Prototype Spec", "engineer", "skills/engineer/prototype-spec.md"),
   loadSkill("competitor-research", "Competitor Research", "strategist", "skills/strategist/competitor-research.md"),
   loadSkill("market-validation", "Market Validation", "strategist", "skills/strategist/market-validation.md"),
+  loadSkill("evidence-plan", "Evidence Plan", "strategist", "skills/strategist/evidence-plan.md"),
   loadSkill("demo-story", "Demo Story", "designer", "skills/designer/demo-story.md"),
   loadSkill("experience-mapping", "Experience Mapping", "designer", "skills/designer/experience-mapping.md"),
+  loadSkill("presentation-asset-plan", "Presentation Asset Plan", "designer", "skills/designer/presentation-asset-plan.md"),
   loadSkill("pitch-review", "Pitch Review", "critic", "skills/critic/pitch-review.md"),
-  loadSkill("assumption-audit", "Assumption Audit", "critic", "skills/critic/assumption-audit.md")
+  loadSkill("assumption-audit", "Assumption Audit", "critic", "skills/critic/assumption-audit.md"),
+  loadSkill("quality-gate", "Quality Gate", "critic", "skills/critic/quality-gate.md")
 ];
 
 const tools = [
   { id: "read_project_file", name: "Read Project Context", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "engineer", "strategist", "critic"] },
   { id: "write_artifact", name: "Create Brief Artifact", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "designer"] },
   { id: "update_task", name: "Create Tasks", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "engineer"] },
+  { id: "create_research_plan", name: "Create Research Plan", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "strategist", "critic"] },
+  { id: "create_option_board", name: "Create Option Board", approval: "none", trigger: "automatic", risk: "low", agents: ["ideator", "designer", "captain"] },
+  { id: "create_feasibility_checklist", name: "Create Feasibility Checklist", approval: "none", trigger: "automatic", risk: "low", agents: ["engineer", "captain"] },
+  { id: "create_risk_register", name: "Create Risk Register", approval: "none", trigger: "automatic", risk: "low", agents: ["critic", "engineer", "captain"] },
+  { id: "create_decision_matrix", name: "Create Decision Matrix", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "strategist", "critic"] },
+  { id: "create_pitch_outline", name: "Create Pitch Outline", approval: "none", trigger: "automatic", risk: "low", agents: ["designer", "captain", "critic"] },
   { id: "web_search", name: "Web Research", approval: "user", trigger: "automatic_request", risk: "external", agents: ["ideator", "engineer", "strategist", "critic"] }
 ];
 
@@ -1168,6 +1180,30 @@ async function runAutomaticTools({ meeting, stage, brief, signal, includeResearc
     calls.push({ toolId: "write_artifact", agentId: "captain", payload: { brief } });
   }
 
+  if (stage === "Framing") {
+    calls.push({ toolId: "create_research_plan", agentId: "strategist", payload: { meeting, brief, stage } });
+  }
+
+  if (stage === "Brainstorming") {
+    calls.push({ toolId: "create_option_board", agentId: "ideator", payload: { meeting, brief, stage } });
+  }
+
+  if (stage === "Feasibility") {
+    calls.push({ toolId: "create_feasibility_checklist", agentId: "engineer", payload: { meeting, brief, stage } });
+  }
+
+  if (stage === "Challenge") {
+    calls.push({ toolId: "create_risk_register", agentId: "critic", payload: { meeting, brief, stage } });
+  }
+
+  if (stage === "Convergence") {
+    calls.push({ toolId: "create_decision_matrix", agentId: "captain", payload: { meeting, brief, stage } });
+  }
+
+  if (stage === "Pitch Prep" || stage === "Summary") {
+    calls.push({ toolId: "create_pitch_outline", agentId: "designer", payload: { meeting, brief, stage } });
+  }
+
   if (stage === "Action Plan" || stage === "Summary") {
     calls.push({ toolId: "update_task", agentId: "captain", payload: { brief, stage } });
   }
@@ -1230,6 +1266,54 @@ async function executeTool(body = {}, { signal } = {}) {
     };
   }
 
+  if (toolId === "create_research_plan") {
+    return {
+      ...base,
+      status: "completed",
+      result: createResearchPlan(payload)
+    };
+  }
+
+  if (toolId === "create_option_board") {
+    return {
+      ...base,
+      status: "completed",
+      result: createOptionBoard(payload)
+    };
+  }
+
+  if (toolId === "create_feasibility_checklist") {
+    return {
+      ...base,
+      status: "completed",
+      result: createFeasibilityChecklist(payload)
+    };
+  }
+
+  if (toolId === "create_risk_register") {
+    return {
+      ...base,
+      status: "completed",
+      result: createRiskRegister(payload)
+    };
+  }
+
+  if (toolId === "create_decision_matrix") {
+    return {
+      ...base,
+      status: "completed",
+      result: createDecisionMatrix(payload)
+    };
+  }
+
+  if (toolId === "create_pitch_outline") {
+    return {
+      ...base,
+      status: "completed",
+      result: createPitchOutline(payload)
+    };
+  }
+
   if (toolId === "web_search") {
     const query = truncate(String(payload.query || "").trim(), 240);
     if (!query) return { ok: false, error: "Search query is required." };
@@ -1260,6 +1344,183 @@ async function executeTool(body = {}, { signal } = {}) {
   }
 
   return { ok: false, error: "Tool is not implemented." };
+}
+
+function createResearchPlan({ meeting = {}, brief = {}, stage = "Framing" } = {}) {
+  const questions = pickToolItems(brief.questions, [
+    `Who most urgently needs ${meeting.topic || "this idea"}?`,
+    "Which alternatives do users already use?",
+    "What evidence would change the team's confidence?"
+  ], 4);
+  const risks = pickToolItems(brief.risks, ["No material risks identified yet."], 4);
+  return [
+    `# Research Plan`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    `## Decision to Support`,
+    "",
+    `Clarify whether the current direction is worth pursuing for ${meeting.contestType || "this project"}.`,
+    "",
+    `## Research Questions`,
+    "",
+    markdownTable(
+      ["Question", "Evidence to collect", "Owner", "Done when"],
+      questions.map((question, index) => [
+        question,
+        index === 0 ? "User behavior, search demand, or comparable examples" : "Examples, objections, benchmarks, or quotes",
+        index % 2 === 0 ? "Strategist" : "Critic",
+        "A sourced note changes or confirms a decision"
+      ])
+    ),
+    "",
+    `## Watchouts`,
+    "",
+    risks.map((risk) => `- ${risk}`).join("\n")
+  ].join("\n");
+}
+
+function createOptionBoard({ meeting = {}, brief = {}, stage = "Brainstorming" } = {}) {
+  const options = pickToolItems(brief.proposal, [
+    `Core version of ${meeting.topic || "the idea"}`,
+    "Higher-risk differentiated version",
+    "Fastest demoable version"
+  ], 3);
+  return [
+    `# Option Board`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    markdownTable(
+      ["Option", "Hook", "Proof artifact", "Keep if"],
+      options.map((option, index) => [
+        option,
+        index === 0 ? "Clear and credible" : index === 1 ? "Memorable contrast" : "Fast to demonstrate",
+        index === 2 ? "Prototype or storyboard" : "Example, test, or comparison",
+        "It improves judge/user confidence without bloating scope"
+      ])
+    ),
+    "",
+    `## Selection Rule`,
+    "",
+    `Keep the option that can produce the strongest visible proof with the least extra complexity.`
+  ].join("\n");
+}
+
+function createFeasibilityChecklist({ brief = {}, stage = "Feasibility" } = {}) {
+  const actions = pickToolItems(brief.actions, ["Build the smallest inspectable prototype."], 5);
+  const risks = pickToolItems(brief.risks, ["No blocking technical risk named yet."], 5);
+  return [
+    `# Feasibility Checklist`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    `## Build Checks`,
+    "",
+    actions.map((action) => `- [ ] ${action}`).join("\n"),
+    "",
+    `## Failure Checks`,
+    "",
+    risks.map((risk) => `- [ ] Test or reduce: ${risk}`).join("\n"),
+    "",
+    `## QA Gate`,
+    "",
+    `The next demo should be inspectable, repeatable, and explainable in under 90 seconds.`
+  ].join("\n");
+}
+
+function createRiskRegister({ brief = {}, stage = "Challenge" } = {}) {
+  const risks = pickToolItems(brief.risks, ["The current direction may not have enough evidence yet."], 5);
+  const questions = pickToolItems(brief.questions, ["What evidence would invalidate the plan?"], 5);
+  return [
+    `# Risk Register`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    markdownTable(
+      ["Risk", "Impact", "Mitigation", "Evidence Needed"],
+      risks.map((risk, index) => [
+        risk,
+        index === 0 ? "High" : "Medium",
+        "Reduce scope, test early, or prepare a judge answer",
+        questions[index] || "Concrete proof artifact"
+      ])
+    )
+  ].join("\n");
+}
+
+function createDecisionMatrix({ brief = {}, stage = "Convergence" } = {}) {
+  const options = pickToolItems(brief.proposal, ["Current direction", "Simpler MVP", "Differentiated stretch"], 3);
+  return [
+    `# Decision Matrix`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    markdownTable(
+      ["Option", "User value", "Feasibility", "Demo clarity", "Recommendation"],
+      options.map((option, index) => [
+        option,
+        index === 0 ? "High if assumptions hold" : "Medium",
+        index === 1 ? "High" : "Medium",
+        index === 2 ? "Medium" : "High",
+        index === 0 ? "Primary candidate" : "Backup or test variant"
+      ])
+    ),
+    "",
+    `## Tie-breaker`,
+    "",
+    `Choose the path that makes the clearest artifact for the next meeting or pitch.`
+  ].join("\n");
+}
+
+function createPitchOutline({ meeting = {}, brief = {}, stage = "Pitch Prep" } = {}) {
+  const proposal = pickToolItems(brief.proposal, [`Introduce ${meeting.topic || "the project"} clearly.`], 3);
+  const actions = pickToolItems(brief.actions, ["Show the next concrete step."], 3);
+  const risks = pickToolItems(brief.risks, ["Prepare one honest limitation."], 3);
+  return [
+    `# Pitch Outline`,
+    "",
+    `Stage: ${stage}`,
+    "",
+    markdownTable(
+      ["Slide", "Claim", "Asset"],
+      [
+        ["1. Problem", proposal[0], "User story or painful before-state"],
+        ["2. Solution", proposal[1] || proposal[0], "One-screen workflow or demo moment"],
+        ["3. Proof", actions[0], "Prototype, metric, comparison, or research note"],
+        ["4. Plan", actions[1] || actions[0], "Timeline or task board"],
+        ["5. Risks", risks[0], "Mitigation table or judge answer"]
+      ]
+    ),
+    "",
+    `## Final Check`,
+    "",
+    `Every slide should make one claim and show one inspectable artifact.`
+  ].join("\n");
+}
+
+function pickToolItems(items, fallback, limit) {
+  const source = Array.isArray(items) ? items : [];
+  const cleaned = source
+    .map((item) => truncate(String(item || "").replace(/\s+/g, " ").trim(), 140))
+    .filter(Boolean)
+    .filter((item) => item !== "Pending later stages.");
+  return (cleaned.length ? cleaned : fallback).slice(0, limit);
+}
+
+function markdownTable(headers, rows) {
+  return [
+    `| ${headers.map(escapeMarkdownCell).join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...rows.map((row) => `| ${row.map(escapeMarkdownCell).join(" | ")} |`)
+  ].join("\n");
+}
+
+function escapeMarkdownCell(value) {
+  return String(value || "")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ")
+    .trim();
 }
 
 async function searchWeb(query, signal) {

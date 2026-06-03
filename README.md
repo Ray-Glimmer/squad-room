@@ -130,9 +130,15 @@ Agent skills live in `skills/` as editable Markdown files.
 | Read Project Context | Reads explicitly provided project materials. | No |
 | Create Brief Artifact | Refreshes the structured meeting brief. | No |
 | Create Tasks | Turns decisions into visible work items. | No |
+| Create Research Plan | Turns framing questions into a research plan. | No |
+| Create Option Board | Compares brainstormed directions. | No |
+| Create Feasibility Checklist | Converts feasibility concerns into checks. | No |
+| Create Risk Register | Collects risks, mitigations, and evidence needs. | No |
+| Create Decision Matrix | Helps compare converging options. | No |
+| Create Pitch Outline | Turns the plan into a slide-by-slide story. | No |
 | Web Research | Searches stage-relevant topics when enabled. | Optional |
 
-Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
+These artifact tools follow the same spirit as an office workflow: each stage leaves behind a readable work product, not just chat. Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
 
 ## Developer Commands
 

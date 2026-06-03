@@ -130,9 +130,15 @@ PDF, DOCX, XLS, XLSX
 | Read Project Context | 读取你明确提供的项目资料。 | 不需要 |
 | Create Brief Artifact | 刷新结构化会议简报。 | 不需要 |
 | Create Tasks | 把决策整理成可见任务。 | 不需要 |
+| Create Research Plan | 把 framing 阶段的问题整理成研究计划。 | 不需要 |
+| Create Option Board | 对比脑暴阶段出现的方向。 | 不需要 |
+| Create Feasibility Checklist | 把可行性问题转成检查清单。 | 不需要 |
+| Create Risk Register | 汇总风险、缓解方式和证据需求。 | 不需要 |
+| Create Decision Matrix | 帮助比较收敛阶段的备选方案。 | 不需要 |
+| Create Pitch Outline | 把方案整理成逐页路演故事。 | 不需要 |
 | Web Research | 开启后按阶段检索相关信息。 | 可选 |
 
-自动网页检索默认关闭。开启后，agent 可以按需发送检索关键词。检索结果会加入共享上下文，并在 Team Inbox 中聚合展示。
+这些产物工具借鉴了 office workflow 的思路：每个阶段都留下可读、可检查的工作材料，而不只是聊天记录。自动网页检索默认关闭。开启后，agent 可以按需发送检索关键词。检索结果会加入共享上下文，并在 Team Inbox 中聚合展示。
 
 ## 开发命令
 

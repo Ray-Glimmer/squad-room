@@ -1465,6 +1465,12 @@ function renderActivity(activity) {
 function summarizeToolResult(activity) {
   if (activity.toolId === "read_project_file") return "Project context loaded for the squad.";
   if (activity.toolId === "write_artifact") return "Current brief artifact refreshed.";
+  if (activity.toolId === "create_research_plan") return "Research plan prepared for the squad.";
+  if (activity.toolId === "create_option_board") return "Option board prepared for comparison.";
+  if (activity.toolId === "create_feasibility_checklist") return "Feasibility checklist prepared.";
+  if (activity.toolId === "create_risk_register") return "Risk register prepared.";
+  if (activity.toolId === "create_decision_matrix") return "Decision matrix prepared.";
+  if (activity.toolId === "create_pitch_outline") return "Pitch outline prepared.";
   if (activity.toolId === "update_task") {
     const count = Array.isArray(activity.result) ? activity.result.length : 0;
     return `${count} action ${count === 1 ? "item" : "items"} prepared.`;

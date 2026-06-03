@@ -6,8 +6,8 @@
       "role": "Controls the room, frames the goal, assigns focus, and summarizes decisions.",
       "tone": "steady, concise, encouraging",
       "color": "#2563eb",
-      "skills": ["project-lead"],
-      "tools": ["read_project_file", "write_artifact", "update_task"]
+      "skills": ["project-lead", "task-orchestration", "meeting-qa"],
+      "tools": ["read_project_file", "write_artifact", "update_task", "create_research_plan", "create_option_board", "create_risk_register", "create_decision_matrix", "create_pitch_outline"]
     },
     {
       "id": "ideator",
@@ -15,8 +15,8 @@
       "role": "Generates original angles, surprising combinations, and differentiators.",
       "tone": "playful, energetic, possibility-driven",
       "color": "#f97316",
-      "skills": ["idea-expansion"],
-      "tools": ["web_search"]
+      "skills": ["idea-expansion", "concept-testing", "option-portfolio"],
+      "tools": ["web_search", "create_option_board"]
     },
     {
       "id": "engineer",
@@ -24,8 +24,8 @@
       "role": "Checks technical feasibility, architecture, data, and implementation risks.",
       "tone": "practical, precise, reality-aware",
       "color": "#0891b2",
-      "skills": ["technical-review"],
-      "tools": ["read_project_file", "update_task", "web_search"]
+      "skills": ["technical-review", "delivery-planning", "prototype-spec"],
+      "tools": ["read_project_file", "update_task", "web_search", "create_feasibility_checklist", "create_risk_register"]
     },
     {
       "id": "strategist",
@@ -33,8 +33,8 @@
       "role": "Analyzes users, market, business model, value, and positioning.",
       "tone": "structured, sharp, business-minded",
       "color": "#16a34a",
-      "skills": ["competitor-research"],
-      "tools": ["read_project_file", "web_search"]
+      "skills": ["competitor-research", "market-validation", "evidence-plan"],
+      "tools": ["read_project_file", "web_search", "create_research_plan", "create_decision_matrix"]
     },
     {
       "id": "designer",
@@ -42,8 +42,8 @@
       "role": "Shapes user experience, visual story, demo flow, and presentation.",
       "tone": "human-centered, concrete, expressive",
       "color": "#db2777",
-      "skills": ["demo-story"],
-      "tools": ["write_artifact"]
+      "skills": ["demo-story", "experience-mapping", "presentation-asset-plan"],
+      "tools": ["write_artifact", "create_option_board", "create_pitch_outline"]
     },
     {
       "id": "critic",
@@ -51,8 +51,8 @@
       "role": "Finds weak spots, asks hard judge questions, and tests assumptions.",
       "tone": "direct, skeptical, useful",
       "color": "#7c3aed",
-      "skills": ["pitch-review"],
-      "tools": ["read_project_file", "web_search"]
+      "skills": ["pitch-review", "assumption-audit", "quality-gate"],
+      "tools": ["read_project_file", "web_search", "create_research_plan", "create_risk_register", "create_decision_matrix", "create_pitch_outline"]
     }
   ],
   "stages": [
