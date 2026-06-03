@@ -8,3 +8,4 @@ tools/
 .DS_Store
 Thumbs.db
 *.log
+tmp-*.png
