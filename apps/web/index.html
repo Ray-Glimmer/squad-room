@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Squad Room</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-03" />
+    <link rel="stylesheet" href="./styles.css?v=20260604-04" />
   </head>
   <body>
     <main class="app-shell">
@@ -40,19 +40,42 @@
               <button type="button" class="primary-button" data-view-target="homeView" data-focus-topic data-i18n="home.start">Start a meeting</button>
               <button type="button" id="loadDemoButton" class="ghost-button" data-i18n="home.demo">Load demo</button>
             </div>
+            <div class="hero-proof">
+              <span>6 teammates</span>
+              <span>Briefs, tasks, research</span>
+              <span>Local API ready</span>
+            </div>
           </div>
           <div class="home-preview" aria-label="Squad Room preview">
-            <div>
-              <span data-i18n="home.previewNow">Now</span>
-              <strong data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</strong>
+            <div class="preview-topline">
+              <span class="live-dot"></span>
+              <strong>Live room preview</strong>
+              <small>Framing</small>
             </div>
-            <div>
-              <span data-i18n="home.previewNext">Next</span>
-              <strong data-i18n="home.previewAction">Run one stage, inspect the brief, then keep the room moving.</strong>
+            <div class="preview-thread">
+              <article>
+                <span>Captain</span>
+                <p data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</p>
+              </article>
+              <article>
+                <span>Strategist</span>
+                <p data-i18n="home.previewAction">Run one stage, inspect the brief, then keep the room moving.</p>
+              </article>
+              <article>
+                <span>Critic</span>
+                <p data-i18n="home.previewRisk">Separate meeting decisions from diagnostics and configuration.</p>
+              </article>
             </div>
-            <div>
-              <span data-i18n="home.previewWatch">Watch</span>
-              <strong data-i18n="home.previewRisk">Separate meeting decisions from diagnostics and configuration.</strong>
+            <div class="preview-brief">
+              <span data-i18n="brief.keyBrief">Key Brief</span>
+              <div>
+                <b data-i18n="brief.now">Now</b>
+                <p data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</p>
+              </div>
+              <div>
+                <b data-i18n="brief.next">Next</b>
+                <p data-i18n="home.previewAction">Run one stage, inspect the brief, then keep the room moving.</p>
+              </div>
             </div>
           </div>
         </section>
@@ -267,6 +290,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260604-02" type="module"></script>
+    <script src="./app.js?v=20260604-04" type="module"></script>
   </body>
 </html>

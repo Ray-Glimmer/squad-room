@@ -321,12 +321,13 @@ function applyLanguage() {
 }
 
 function openCreateRoomPanel({ focus = false } = {}) {
+  if (currentView !== "homeView") showView("homeView");
   meetingForm.classList.remove("setup-collapsed");
   meetingForm.setAttribute("aria-hidden", "false");
-  requestAnimationFrame(() => {
+  window.setTimeout(() => {
     meetingForm.scrollIntoView({ behavior: "smooth", block: "start" });
     if (focus) meetingForm.elements.topic?.focus();
-  });
+  }, 80);
 }
 
 function loadSquadConfig() {
