@@ -22,12 +22,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% 12%, rgba(37, 99, 235, 0.12), transparent 28vw),
-    radial-gradient(circle at 85% 16%, rgba(8, 145, 178, 0.14), transparent 26vw),
-    linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(8, 145, 178, 0.04) 1px, transparent 1px),
-    #f6f7f9;
-  background-size: 42px 42px;
+    radial-gradient(circle at 18% 10%, rgba(37, 99, 235, 0.1), transparent 26vw),
+    radial-gradient(circle at 82% 8%, rgba(20, 184, 166, 0.09), transparent 24vw),
+    linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -59,14 +56,14 @@ button {
   grid-template-columns: minmax(220px, auto) minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
-  width: min(1320px, calc(100vw - 32px));
-  min-height: 72px;
-  margin: 16px auto 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(203, 213, 225, 0.72);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
+  width: min(1240px, calc(100vw - 40px));
+  min-height: 70px;
+  margin: 18px auto 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(22px);
 }
 
@@ -130,9 +127,9 @@ button {
 }
 
 .page-view {
-  width: min(1320px, calc(100vw - 32px));
+  width: min(1240px, calc(100vw - 40px));
   margin: 0 auto;
-  padding: 28px 0 40px;
+  padding: 20px 0 40px;
 }
 
 .home-view {
@@ -162,11 +159,11 @@ button {
 .home-hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
-  gap: clamp(22px, 4vw, 52px);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.88fr);
+  gap: clamp(28px, 4.5vw, 64px);
   align-items: center;
-  min-height: calc(100svh - 88px);
-  padding: clamp(38px, 6vw, 78px) 0 clamp(30px, 5vw, 62px);
+  min-height: calc(100svh - 108px);
+  padding: clamp(34px, 5vw, 70px) 0 clamp(36px, 5vw, 68px);
 }
 
 .home-hero::before {
@@ -182,24 +179,24 @@ button {
     radial-gradient(circle, rgba(37, 99, 235, 0.16), transparent 66%),
     radial-gradient(circle at 70% 30%, rgba(8, 145, 178, 0.16), transparent 48%);
   filter: blur(2px);
-  animation: scene-sweep 11s ease-in-out infinite;
+  animation: scene-sweep 12s ease-in-out infinite;
 }
 
 .home-preview,
 .setup-grid {
-  border: 1px solid rgba(203, 213, 225, 0.88);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.1);
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 68px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(14px);
 }
 
 .home-copy {
   position: relative;
   display: grid;
   align-content: center;
-  gap: 22px;
-  min-height: 560px;
+  gap: 20px;
+  min-height: 500px;
   overflow: hidden;
   padding: 0;
 }
@@ -226,10 +223,10 @@ button {
 }
 
 .home-copy p {
-  max-width: 700px;
+  max-width: 620px;
   margin: 0;
   color: #475569;
-  font-size: clamp(18px, 1.5vw, 22px);
+  font-size: clamp(17px, 1.35vw, 20px);
   line-height: 1.55;
 }
 
@@ -240,9 +237,9 @@ button {
 }
 
 .home-copy h1 {
-  max-width: 850px;
-  font-size: clamp(54px, 7.3vw, 112px);
-  line-height: 0.92;
+  max-width: 720px;
+  font-size: clamp(48px, 6.2vw, 88px);
+  line-height: 0.98;
 }
 
 .home-actions {
@@ -281,12 +278,12 @@ button {
 .home-preview {
   position: relative;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   align-content: start;
   overflow: hidden;
-  min-height: 620px;
-  padding: 18px;
-  transform: perspective(1200px) rotateX(1deg) rotateY(-4deg);
+  min-height: 560px;
+  padding: 16px;
+  transform: none;
 }
 
 .home-preview::before {
@@ -294,8 +291,8 @@ button {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(37, 99, 235, 0.08), transparent 34%, rgba(8, 145, 178, 0.06)),
-    linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.74));
+    linear-gradient(180deg, rgba(37, 99, 235, 0.06), transparent 42%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.4), rgba(241, 245, 249, 0.64));
   pointer-events: none;
 }
 
@@ -312,9 +309,9 @@ button {
   gap: 10px;
   min-height: 48px;
   padding: 0 14px;
-  border: 1px solid rgba(203, 213, 225, 0.82);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .preview-topline strong {
@@ -344,21 +341,21 @@ button {
 .preview-thread article {
   display: grid;
   gap: 7px;
-  padding: 16px;
-  border: 1px solid rgba(203, 213, 225, 0.78);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  padding: 15px 16px;
+  border: 1px solid rgba(203, 213, 225, 0.86);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.055);
   animation: preview-rise 700ms ease both;
 }
 
 .preview-thread article:nth-child(2) {
-  margin-left: 36px;
+  margin-left: 22px;
   animation-delay: 120ms;
 }
 
 .preview-thread article:nth-child(3) {
-  margin-left: 18px;
+  margin-left: 0;
   animation-delay: 240ms;
 }
 
@@ -383,9 +380,9 @@ button {
   gap: 12px;
   margin-top: 4px;
   padding: 18px;
-  border: 1px solid rgba(203, 213, 225, 0.82);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.84);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .preview-brief div {
@@ -451,15 +448,25 @@ h1 {
 
 .setup-grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  min-height: calc(100svh - 112px);
-  align-content: center;
+  min-height: calc(100svh - 110px);
+  align-content: start;
   margin-bottom: 32px;
   padding: clamp(24px, 4vw, 44px);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 22px 64px rgba(15, 23, 42, 0.1);
   scroll-margin-top: 96px;
   transform-origin: top;
   transition: max-height 420ms ease, opacity 260ms ease, transform 420ms ease, margin 420ms ease, padding 420ms ease;
+}
+
+.setup-grid .form-section-title,
+.setup-grid label:nth-of-type(5),
+.setup-grid .material-import,
+.setup-grid .material-file-list,
+.setup-grid .setup-options,
+.setup-grid .setup-actions {
+  grid-column: 1 / -1;
 }
 
 .setup-grid.setup-collapsed {

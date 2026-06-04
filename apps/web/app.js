@@ -16,6 +16,10 @@ const translations = {
     "home.subtitle": "Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.",
     "home.start": "Start a meeting",
     "home.demo": "Load demo",
+    "home.proofTeam": "6 teammates",
+    "home.proofOutputs": "Briefs, tasks, research",
+    "home.proofApi": "Local API ready",
+    "home.previewRoom": "Live room preview",
     "home.previewNow": "Now",
     "home.previewDecision": "Clarify the real problem before generating ideas.",
     "home.previewNext": "Next",
@@ -97,6 +101,10 @@ const translations = {
     "home.subtitle": "输入主题，带入项目资料，让小队把混乱想法整理成决策、任务和下一步行动。",
     "home.start": "开始会议",
     "home.demo": "载入示例",
+    "home.proofTeam": "6 位队友",
+    "home.proofOutputs": "简报、任务、检索",
+    "home.proofApi": "本地 API 就绪",
+    "home.previewRoom": "会议室预览",
     "home.previewNow": "当前",
     "home.previewDecision": "先澄清真正的问题，再开始发散想法。",
     "home.previewNext": "下一步",
@@ -325,9 +333,16 @@ function openCreateRoomPanel({ focus = false } = {}) {
   meetingForm.classList.remove("setup-collapsed");
   meetingForm.setAttribute("aria-hidden", "false");
   window.setTimeout(() => {
-    meetingForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (focus) meetingForm.elements.topic?.focus();
+    scrollToCreateRoom();
+    if (focus) meetingForm.elements.topic?.focus({ preventScroll: true });
   }, 80);
+}
+
+function scrollToCreateRoom() {
+  const nav = document.querySelector(".app-nav");
+  const navHeight = nav?.getBoundingClientRect().height || 72;
+  const top = meetingForm.getBoundingClientRect().top + window.scrollY - navHeight - 18;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 }
 
 function loadSquadConfig() {
@@ -409,7 +424,6 @@ loadDemoButton.addEventListener("click", () => {
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
   meetingForm.elements.projectMaterials.value = "Decision criteria: useful discussion quality, feasibility, privacy, ease of setup, and clear next actions. Existing idea: a personal multi-agent meeting room.";
   apiBaseInput.value = apiBase;
-  requestAnimationFrame(() => meetingForm.scrollIntoView({ behavior: "smooth", block: "start" }));
 });
 
 resetConfigButton.addEventListener("click", () => {
