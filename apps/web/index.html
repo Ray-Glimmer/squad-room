@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Squad Room</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-05" />
+    <link rel="stylesheet" href="./styles.css?v=20260604-06" />
   </head>
   <body>
     <main class="app-shell">
@@ -13,7 +13,7 @@
           <span class="brand-mark">SR</span>
           <span>
             <strong>Squad Room</strong>
-            <small data-i18n="nav.subtitle">Personal AI advisor team</small>
+            <small data-i18n="nav.subtitle">Personal advisory room</small>
           </span>
         </button>
         <div class="nav-links">
@@ -31,8 +31,8 @@
       <section id="homeView" class="page-view home-view">
         <section class="home-hero">
           <div class="home-copy">
-            <p class="eyebrow" data-i18n="home.eyebrow">Personal AI meeting room</p>
-            <h1 data-i18n="home.title">Open a focused room for your AI advisor squad.</h1>
+            <p class="eyebrow" data-i18n="home.eyebrow">Personal advisory room</p>
+            <h1 data-i18n="home.title">A quieter room for decisions that need more than one angle.</h1>
             <p data-i18n="home.subtitle">
               Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.
             </p>
@@ -48,23 +48,24 @@
           </div>
           <div class="home-preview" aria-label="Squad Room preview">
             <div class="preview-topline">
-              <span class="live-dot"></span>
-              <strong data-i18n="home.previewRoom">Live room preview</strong>
-              <small>Framing</small>
+              <strong data-i18n="home.previewRoom">Meeting table</strong>
+              <small data-i18n="home.previewStage">Ready</small>
             </div>
-            <div class="preview-thread">
-              <article>
-                <span>Captain</span>
-                <p data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</p>
-              </article>
-              <article>
-                <span>Strategist</span>
-                <p data-i18n="home.previewAction">Run one stage, inspect the brief, then keep the room moving.</p>
-              </article>
-              <article>
-                <span>Critic</span>
-                <p data-i18n="home.previewRisk">Separate meeting decisions from diagnostics and configuration.</p>
-              </article>
+            <div class="preview-agenda">
+              <span data-i18n="home.previewAgenda">Session agenda</span>
+              <ol>
+                <li data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</li>
+                <li data-i18n="home.previewAction">Run one stage, inspect the brief, then keep the room moving.</li>
+                <li data-i18n="home.previewRisk">Separate meeting decisions from diagnostics and configuration.</li>
+              </ol>
+            </div>
+            <div class="preview-roster" aria-label="Teammates">
+              <span>Captain</span>
+              <span>Strategist</span>
+              <span>Engineer</span>
+              <span>Designer</span>
+              <span>Ideator</span>
+              <span>Critic</span>
             </div>
             <div class="preview-brief">
               <span data-i18n="brief.keyBrief">Key Brief</span>
@@ -290,6 +291,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260604-05" type="module"></script>
+    <script src="./app.js?v=20260604-06" type="module"></script>
   </body>
 </html>

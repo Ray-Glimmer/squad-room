@@ -6,20 +6,22 @@ const defaultLanguage = localStorage.getItem(LANGUAGE_KEY) || (navigator.languag
 
 const translations = {
   en: {
-    "nav.subtitle": "Personal AI advisor team",
+    "nav.subtitle": "Personal advisory room",
     "nav.home": "Home",
     "nav.meeting": "Meeting",
     "nav.dashboard": "Dashboard",
     "nav.settings": "Settings",
-    "home.eyebrow": "Personal AI meeting room",
-    "home.title": "Open a focused room for problems that need discussion.",
-    "home.subtitle": "Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.",
+    "home.eyebrow": "Personal advisory room",
+    "home.title": "A quieter room for decisions that need more than one angle.",
+    "home.subtitle": "Bring a topic and the useful context. Squad Room turns the discussion into a brief, next actions, and open questions you can actually use.",
     "home.start": "Start a meeting",
     "home.demo": "Load demo",
-    "home.proofTeam": "6 teammates",
-    "home.proofOutputs": "Briefs, tasks, research",
+    "home.proofTeam": "6 perspectives",
+    "home.proofOutputs": "Briefs, tasks, notes",
     "home.proofApi": "Local API ready",
-    "home.previewRoom": "Live room preview",
+    "home.previewRoom": "Meeting table",
+    "home.previewStage": "Ready",
+    "home.previewAgenda": "Session agenda",
     "home.previewNow": "Now",
     "home.previewDecision": "Clarify the real problem before generating ideas.",
     "home.previewNext": "Next",
@@ -91,20 +93,22 @@ const translations = {
     "settings.explorationHelp": "Allow deeper autonomous opportunity research with a larger bounded tool budget."
   },
   zh: {
-    "nav.subtitle": "个人 AI 顾问团",
+    "nav.subtitle": "个人顾问会议室",
     "nav.home": "首页",
     "nav.meeting": "会议室",
     "nav.dashboard": "看板",
     "nav.settings": "设置",
-    "home.eyebrow": "个人 AI 会议室",
-    "home.title": "为需要讨论的问题打开一个专注会议室。",
-    "home.subtitle": "输入主题，带入项目资料，让小队把混乱想法整理成决策、任务和下一步行动。",
+    "home.eyebrow": "个人顾问会议室",
+    "home.title": "把需要多角度判断的问题，放进一间安静会议室。",
+    "home.subtitle": "带入主题和必要资料。小队会把讨论整理成简报、下一步行动和仍需确认的问题。",
     "home.start": "开始会议",
     "home.demo": "载入示例",
-    "home.proofTeam": "6 位队友",
-    "home.proofOutputs": "简报、任务、检索",
+    "home.proofTeam": "6 种视角",
+    "home.proofOutputs": "简报、任务、记录",
     "home.proofApi": "本地 API 就绪",
-    "home.previewRoom": "会议室预览",
+    "home.previewRoom": "会议桌",
+    "home.previewStage": "就绪",
+    "home.previewAgenda": "会议议程",
     "home.previewNow": "当前",
     "home.previewDecision": "先澄清真正的问题，再开始发散想法。",
     "home.previewNext": "下一步",
@@ -418,11 +422,11 @@ meetingForm.addEventListener("submit", async (event) => {
 
 loadDemoButton.addEventListener("click", () => {
   openCreateRoomPanel();
-  meetingForm.elements.topic.value = "Should we build a lightweight AI meeting room for personal project decisions?";
+  meetingForm.elements.topic.value = "Should we build a lightweight advisory room for personal project decisions?";
   meetingForm.elements.contestType.value = "Product Decision";
   meetingForm.elements.goal.value = "Turn a rough product idea into a clear MVP direction and next-step plan";
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
-  meetingForm.elements.projectMaterials.value = "Decision criteria: useful discussion quality, feasibility, privacy, ease of setup, and clear next actions. Existing idea: a personal multi-agent meeting room.";
+  meetingForm.elements.projectMaterials.value = "Decision criteria: useful discussion quality, feasibility, privacy, ease of setup, and clear next actions. Existing idea: a personal multi-perspective meeting room.";
   apiBaseInput.value = apiBase;
 });
 
