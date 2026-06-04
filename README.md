@@ -2,26 +2,34 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Squad Room is a personal AI advisor team for competitions, projects, and serious brainstorming.
+Squad Room is a local-first multi-agent meeting room for personal planning, competitions, project work, and structured brainstorming.
 
-Open a room, give the squad a topic, and let six teammates discuss, challenge, research, summarize, and turn ideas into action.
+Create a room, provide a topic and project context, and let a small AI team discuss, challenge, research, summarize, and turn ideas into action.
 
 [Live frontend](https://ray-glimmer.github.io/squad-room_agents/) · [Security](SECURITY.md) · [Architecture](docs/ARCHITECTURE.md)
 
-## What You Get
+## Features
 
-| Area | What it does |
+| Area | What it provides |
 | --- | --- |
-| Team discussion | Six default agents discuss from different roles: Captain, Ideator, Engineer, Strategist, Designer, and Critic. |
-| Streaming chat | Teammate replies stream in real time and render as safe Markdown. |
-| Current brief | The right panel keeps a concise brief of direction, actions, risks, and open questions. |
-| Task Center | Decisions can become owner-based action items. |
-| Team Inbox | Background research arrives quietly as grouped discovery cards. |
-| Run Trace | Key agent turns, tool calls, brief updates, and errors are recorded as a compact run log. |
-| Project materials | Paste notes or import common files before opening a room. |
-| Material retrieval | Project materials are chunked and retrieved into prompts by relevance. |
-| Chat controls | Use commands such as `pause`, `resume`, `next`, `run`, `summary`, and `clear queue`. Natural control phrases are also recognized. |
-| Local-first keys | The browser never stores model API keys; model calls go through the API server. |
+| Multi-agent discussion | Six default roles: Captain, Ideator, Engineer, Strategist, Designer, and Critic. |
+| Streaming meeting room | Agent responses stream into the discussion and render as safe Markdown. |
+| Focused brief | The meeting page highlights decisions, next actions, risks, and open questions. |
+| Task center | Meeting outcomes can become owner-based action items. |
+| Background research | Agents can run bounded web research when enabled; results are grouped as research updates. |
+| Project materials | Paste notes or import common document formats before starting a room. |
+| Material retrieval | The API chunks project materials and retrieves relevant snippets for each agent turn. |
+| Operations dashboard | Tool runs, background work, usage, workspaces, and run traces live outside the meeting room. |
+| Configurable skills and tools | Agent methods live in editable Markdown files and skill-pack directories. |
+| Local-first key handling | The browser never stores model API keys; model calls go through the API server. |
+| Bilingual interface | The frontend supports English and Simplified Chinese. |
+
+## Interface
+
+- **Home**: start a room with a topic, goal, constraints, and project materials.
+- **Meeting**: discuss with the squad, steer the conversation, and read the current brief.
+- **Dashboard**: inspect workspace state, background tasks, tool activity, usage, and run trace.
+- **Settings**: review teammates, skills, tools, API endpoint, and research controls.
 
 ## Quick Start
 
@@ -30,7 +38,7 @@ Requirements:
 - Node.js 20+
 - No npm install is required for the current MVP.
 
-Clone and start the API:
+Clone the repository and start the API:
 
 ```bash
 git clone https://github.com/Ray-Glimmer/squad-room_agents.git
@@ -46,23 +54,23 @@ Copy-Item .env.example apps/api/.env
 npm.cmd run api
 ```
 
-Open the frontend:
+Open the static frontend:
 
 ```text
 apps/web/index.html
 ```
 
-Or use the hosted static frontend:
+Or use the hosted frontend:
 
 ```text
 https://ray-glimmer.github.io/squad-room_agents/
 ```
 
-The frontend uses `http://localhost:8787` by default. You can change the API endpoint on the setup screen.
+The frontend connects to `http://localhost:8787` by default. You can change the API endpoint in **Settings**.
 
-## Use Mock Mode
+## Mock Mode
 
-Want to try the interface without a model key? Leave `OPENAI_API_KEY` empty, or set:
+To try the interface without a model key, leave `OPENAI_API_KEY` empty or set:
 
 ```env
 SQUAD_ROOM_MOCK=true
@@ -70,9 +78,9 @@ SQUAD_ROOM_MOCK=true
 
 Mock mode is useful for UI testing, demos, and development.
 
-## Configure a Model
+## Model Configuration
 
-Copy `.env.example` to `apps/api/.env`, then edit:
+Copy `.env.example` to `apps/api/.env`, then configure:
 
 ```env
 OPENAI_API_KEY=
@@ -85,14 +93,14 @@ SQUAD_ROOM_MOCK=false
 
 Any OpenAI-compatible provider can be used by changing `OPENAI_BASE_URL` and `OPENAI_MODEL`.
 
-## How to Use
+## Basic Workflow
 
-1. Enter a topic, goal, constraints, and optional project materials.
-2. Choose whether agents can run automatic web research.
-3. Open the room.
-4. Let the squad discuss one stage at a time, or use **Run Meeting** to advance automatically.
-5. Pause, interrupt, or add context whenever you need to steer the room.
-6. Use the brief, inbox, and task center to turn the discussion into a plan.
+1. Enter a topic, goal, constraints, and optional project materials on the Home page.
+2. Open the meeting room.
+3. Let the squad discuss one stage at a time, or select **Run Meeting** to advance automatically.
+4. Pause, interrupt, or add context whenever you need to steer the discussion.
+5. Use the brief and task center to turn the conversation into an actionable plan.
+6. Use Dashboard and Settings for operational details and configuration.
 
 ## Project Materials
 
@@ -110,18 +118,18 @@ Supported document formats:
 PDF, DOCX, XLS, XLSX
 ```
 
-Files are parsed locally in the browser. When you open a room, extracted text becomes meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined context is limited to 12,000 characters. The API chunks this context and retrieves the most relevant snippets for each agent turn.
+Files are parsed locally in the browser. When you open a room, extracted text becomes meeting context sent to your configured API server. Each file is limited to 10 MB, and the combined context is limited to 12,000 characters.
 
 ## Agent Roles
 
 | Agent | Focus |
 | --- | --- |
 | Captain | Frames the goal, keeps the meeting moving, and summarizes decisions. |
-| Ideator | Generates fresh angles, hooks, and alternatives. |
-| Engineer | Checks feasibility, implementation, and technical risk. |
-| Strategist | Thinks about users, market, positioning, and value. |
-| Designer | Shapes user experience, story, visuals, and demo flow. |
-| Critic | Finds weak assumptions and judge-style objections. |
+| Ideator | Generates alternatives, hooks, and original angles. |
+| Engineer | Checks feasibility, implementation path, and technical risk. |
+| Strategist | Evaluates users, market, positioning, and value. |
+| Designer | Shapes experience, story, visuals, and demo flow. |
+| Critic | Tests assumptions and raises judge-style objections. |
 
 Agent skills live in `skills/` as editable Markdown files. Directory-style skill packs are also supported:
 
@@ -134,20 +142,20 @@ skills/captain/meeting-qa/
 
 ## Tools
 
-| Tool | Runs automatically | Approval |
+| Tool | Purpose | Approval |
 | --- | --- | --- |
 | Read Project Context | Reads explicitly provided project materials. | No |
 | Create Brief Artifact | Refreshes the structured meeting brief. | No |
 | Create Tasks | Turns decisions into visible work items. | No |
-| Create Research Plan | Turns framing questions into a research plan. | No |
+| Create Research Plan | Converts framing questions into a research plan. | No |
 | Create Option Board | Compares brainstormed directions. | No |
 | Create Feasibility Checklist | Converts feasibility concerns into checks. | No |
-| Create Risk Register | Collects risks, mitigations, and evidence needs. | No |
-| Create Decision Matrix | Helps compare converging options. | No |
-| Create Pitch Outline | Turns the plan into a slide-by-slide story. | No |
+| Create Risk Register | Captures risks, mitigations, and evidence needs. | No |
+| Create Decision Matrix | Compares converging options. | No |
+| Create Pitch Outline | Turns a plan into a slide-by-slide story. | No |
 | Web Research | Searches stage-relevant topics when enabled. | Optional |
 
-These artifact tools follow the same spirit as an office workflow: each stage leaves behind a readable work product, not just chat. Artifact tools return both Markdown for reading and structured JSON for future filtering, export, or richer rendering. Automatic web research is off by default. When enabled, agents can send search queries without asking each time. Search results are added to shared context and summarized in Team Inbox.
+Artifact tools return Markdown for reading and structured JSON for future filtering, export, or richer rendering. Automatic web research is off by default.
 
 ## Developer Commands
 
@@ -189,7 +197,7 @@ squad-room/
   docs/           # Product, architecture, deployment, and security notes
   packages/
     shared/       # Shared config reference
-  skills/         # Editable teammate working methods
+  skills/         # Editable agent methods
   scripts/        # Local verification utilities
   .env.example
   SECURITY.md
@@ -197,4 +205,4 @@ squad-room/
 
 ## Status
 
-Squad Room is an early MVP for personal use and developer experimentation. It is already usable, but the product surface and agent workflow are still evolving.
+Squad Room is an early MVP for personal use and developer experimentation. The core flow is usable, while the interface, tools, and agent workflow continue to evolve.

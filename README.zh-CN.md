@@ -2,26 +2,34 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Squad Room，中文名“小队会议室”，是一个给个人使用的 AI 顾问团。
+Squad Room，中文名“小队会议室”，是一个面向个人使用的多 Agent 会议室。它适合用于比赛准备、项目规划、方案讨论和结构化头脑风暴。
 
-输入一个比赛、项目或想法，小队会像一个小型团队一样讨论、质疑、检索、总结，并把结论整理成可以继续执行的方案。
+输入主题和项目资料后，小队会围绕目标展开讨论、质疑、检索和总结，并把讨论结果整理为可继续执行的简报与任务。
 
 [在线前端](https://ray-glimmer.github.io/squad-room_agents/) · [安全说明](SECURITY.md) · [架构说明](docs/ARCHITECTURE.md)
 
-## 你可以用它做什么
+## 功能概览
 
-| 模块 | 作用 |
+| 模块 | 说明 |
 | --- | --- |
-| 小队讨论 | 6 个默认 agent 从不同角色参与：Captain、Ideator、Engineer、Strategist、Designer、Critic。 |
-| 流式聊天 | 队友会边生成边显示，消息支持安全 Markdown 渲染。 |
-| 当前简报 | 右侧自动整理当前方向、行动项、风险和开放问题。 |
-| Task Center | 把讨论结论整理成带负责人和交付物的任务。 |
-| Team Inbox | 后台检索结果不会打断讨论，会聚合成发现卡片。 |
-| Run Trace | 关键 agent 发言、工具调用、简报更新和错误会记录成紧凑运行日志。 |
-| 项目资料 | 开会前可以粘贴资料，也可以导入常见格式文件。 |
-| 资料检索 | 项目资料会被切分，并按当前阶段和角色检索相关片段。 |
-| 聊天控制 | 支持 `pause`、`resume`、`next`、`run`、`summary`、`clear queue` 等命令，也能识别明确的自然语言控制意图。 |
-| 本地优先密钥 | 浏览器不保存模型 API key，模型请求通过 API 服务转发。 |
+| 多 Agent 讨论 | 默认提供 Captain、Ideator、Engineer、Strategist、Designer、Critic 六个角色。 |
+| 流式会议室 | Agent 回复会实时显示，并以安全 Markdown 渲染。 |
+| 会议简报 | 会议页突出展示当前方向、下一步行动、风险提醒和待确认问题。 |
+| 任务中心 | 将讨论结果整理为带负责人和交付物的行动项。 |
+| 后台检索 | 开启后，Agent 可以执行受控网页检索，结果会聚合为研究更新。 |
+| 项目资料 | 支持在会议开始前粘贴笔记或导入常见格式文件。 |
+| 资料检索 | API 会切分项目资料，并在每次 Agent 发言前检索相关片段。 |
+| 运行看板 | 工具运行、后台任务、用量、工作区和运行轨迹集中展示在 Dashboard。 |
+| 技能与工具配置 | Agent 方法以 Markdown 和 skill pack 形式存放，便于开发者修改。 |
+| 本地优先的密钥管理 | 浏览器不保存模型 API key；模型请求由 API 服务转发。 |
+| 中英文界面 | 前端支持英文和简体中文切换。 |
+
+## 页面结构
+
+- **首页**：输入主题、目标、约束和项目资料，创建会议室。
+- **会议室**：与小队讨论、介入会议、查看简报和任务。
+- **看板**：查看共享工作区、后台任务、工具运行、用量和运行轨迹。
+- **设置**：查看队友、技能、工具、API 地址、自动检索和探索模式。
 
 ## 快速开始
 
@@ -30,7 +38,7 @@ Squad Room，中文名“小队会议室”，是一个给个人使用的 AI 顾
 - Node.js 20+
 - 当前 MVP 不需要安装 npm 依赖。
 
-克隆并启动 API：
+克隆仓库并启动 API：
 
 ```bash
 git clone https://github.com/Ray-Glimmer/squad-room_agents.git
@@ -46,33 +54,33 @@ Copy-Item .env.example apps/api/.env
 npm.cmd run api
 ```
 
-打开前端：
+打开静态前端：
 
 ```text
 apps/web/index.html
 ```
 
-也可以直接访问 GitHub Pages 前端：
+也可以直接访问托管前端：
 
 ```text
 https://ray-glimmer.github.io/squad-room_agents/
 ```
 
-前端默认连接 `http://localhost:8787`，你也可以在创建会议页面修改 API endpoint。
+前端默认连接 `http://localhost:8787`。如需修改，请在 **Settings / 设置** 页面调整 API 地址。
 
-## 不配置模型也能试
+## Mock 模式
 
-如果只是想体验界面，可以留空 `OPENAI_API_KEY`，或者设置：
+如果只想体验界面，可以留空 `OPENAI_API_KEY`，或设置：
 
 ```env
 SQUAD_ROOM_MOCK=true
 ```
 
-Mock mode 适合 UI 测试、演示和开发调试。
+Mock 模式适合界面测试、演示和开发调试。
 
-## 配置模型
+## 模型配置
 
-复制 `.env.example` 到 `apps/api/.env`，然后修改：
+复制 `.env.example` 到 `apps/api/.env`，然后配置：
 
 ```env
 OPENAI_API_KEY=
@@ -85,18 +93,18 @@ SQUAD_ROOM_MOCK=false
 
 只要兼容 OpenAI API 格式，就可以通过 `OPENAI_BASE_URL` 和 `OPENAI_MODEL` 接入其他模型服务。
 
-## 使用流程
+## 基本流程
 
-1. 输入主题、目标、约束和可选项目资料。
-2. 选择是否允许 agent 自动进行网页检索。
-3. 打开会议室。
-4. 一阶段一阶段推进，或者点击 **Run Meeting** 自动推进。
-5. 需要介入时，可以暂停、打断、补充信息或直接发送控制指令。
-6. 根据右侧简报、Team Inbox 和 Task Center，把讨论变成行动方案。
+1. 在首页输入主题、目标、约束和可选项目资料。
+2. 打开会议室。
+3. 逐阶段推进讨论，或使用 **Run Meeting** 自动推进。
+4. 需要介入时，可以暂停、打断、补充上下文或发送控制指令。
+5. 根据会议简报和任务中心，把讨论结果转化为行动方案。
+6. 在看板和设置页查看运行状态与配置项。
 
 ## 项目资料
 
-开会前可以粘贴笔记，也可以导入文件。
+会议开始前可以粘贴笔记，也可以导入文件。
 
 支持的文本格式：
 
@@ -110,20 +118,20 @@ TXT, Markdown, CSV, TSV, JSON, HTML, XML, YAML, YML
 PDF, DOCX, XLS, XLSX
 ```
 
-文件会在浏览器本地解析。打开会议后，提取出的文本会作为会议上下文发送给你配置的 API 服务。单个文件最大 10 MB，合并后的上下文最多保留 12,000 个字符。API 会把这些资料切分，并在每次 agent 发言前检索更相关的片段。
+文件会在浏览器本地解析。打开会议后，提取出的文本会作为会议上下文发送给已配置的 API 服务。单个文件最大 10 MB，合并后的上下文最多保留 12,000 个字符。
 
-## 小队角色
+## Agent 角色
 
 | Agent | 分工 |
 | --- | --- |
 | Captain | 定义目标、推进会议、收束结论。 |
-| Ideator | 提供新角度、钩子和备选方案。 |
+| Ideator | 提供备选方案、创意角度和内容钩子。 |
 | Engineer | 检查可行性、实现路径和技术风险。 |
-| Strategist | 思考用户、市场、定位和价值。 |
-| Designer | 打磨体验、故事、视觉和演示流程。 |
-| Critic | 找出脆弱假设和评委可能追问的问题。 |
+| Strategist | 评估用户、市场、定位和价值。 |
+| Designer | 打磨体验、叙事、视觉和演示流程。 |
+| Critic | 检验假设，并提出评委视角的质疑。 |
 
-每个 agent 的技能文件都在 `skills/` 中，可以直接编辑 Markdown。也支持目录式 skill pack：
+每个 Agent 的技能文件都在 `skills/` 中，可以直接编辑 Markdown。项目也支持目录式 skill pack：
 
 ```text
 skills/captain/meeting-qa/
@@ -134,20 +142,20 @@ skills/captain/meeting-qa/
 
 ## 工具
 
-| 工具 | 自动行为 | 是否需要批准 |
+| 工具 | 用途 | 是否需要批准 |
 | --- | --- | --- |
-| Read Project Context | 读取你明确提供的项目资料。 | 不需要 |
-| Create Brief Artifact | 刷新结构化会议简报。 | 不需要 |
-| Create Tasks | 把决策整理成可见任务。 | 不需要 |
-| Create Research Plan | 把 framing 阶段的问题整理成研究计划。 | 不需要 |
-| Create Option Board | 对比脑暴阶段出现的方向。 | 不需要 |
-| Create Feasibility Checklist | 把可行性问题转成检查清单。 | 不需要 |
-| Create Risk Register | 汇总风险、缓解方式和证据需求。 | 不需要 |
-| Create Decision Matrix | 帮助比较收敛阶段的备选方案。 | 不需要 |
-| Create Pitch Outline | 把方案整理成逐页路演故事。 | 不需要 |
-| Web Research | 开启后按阶段检索相关信息。 | 可选 |
+| Read Project Context | 读取用户明确提供的项目资料。 | 否 |
+| Create Brief Artifact | 刷新结构化会议简报。 | 否 |
+| Create Tasks | 将决策整理为可见任务。 | 否 |
+| Create Research Plan | 将 framing 阶段的问题整理为研究计划。 | 否 |
+| Create Option Board | 对比头脑风暴阶段出现的方向。 | 否 |
+| Create Feasibility Checklist | 将可行性问题转化为检查清单。 | 否 |
+| Create Risk Register | 汇总风险、缓解方式和证据需求。 | 否 |
+| Create Decision Matrix | 比较收敛阶段的备选方案。 | 否 |
+| Create Pitch Outline | 将方案整理为逐页路演故事。 | 否 |
+| Web Research | 开启后检索阶段相关信息。 | 可选 |
 
-这些产物工具借鉴了 office workflow 的思路：每个阶段都留下可读、可检查的工作材料，而不只是聊天记录。产物工具会同时返回适合阅读的 Markdown 和适合后续筛选、导出、渲染的结构化 JSON。自动网页检索默认关闭。开启后，agent 可以按需发送检索关键词。检索结果会加入共享上下文，并在 Team Inbox 中聚合展示。
+产物工具会同时返回适合阅读的 Markdown 和适合后续筛选、导出、渲染的结构化 JSON。自动网页检索默认关闭。
 
 ## 开发命令
 
@@ -167,7 +175,7 @@ npm.cmd run eval
 npm.cmd run verify:screenshot
 ```
 
-`eval` 会运行轻量 harness 检查，覆盖工具注册、skill pack、结构化产物、资料检索，以及可选的本地 API smoke test。`verify:screenshot` 会调用本机 Edge 或 Chrome 的 headless 模式，生成前端截图用于检查页面。
+`eval` 会运行轻量 harness 检查，覆盖工具注册、skill pack、结构化产物、资料检索，以及可选的本地 API smoke test。`verify:screenshot` 会调用本机 Edge 或 Chrome 的 headless 模式生成前端截图。
 
 ## GitHub Pages
 
@@ -175,8 +183,8 @@ npm.cmd run verify:screenshot
 
 公开部署时请注意：
 
-- 模型 API key 只放在 API 服务端环境变量里。
-- 不要把真实 API key 写进前端代码、GitHub Pages 变量或已提交文件。
+- 模型 API key 只应放在 API 服务端环境变量中。
+- 不要把真实 API key 写入前端代码、GitHub Pages 变量或已提交文件。
 - 前端可以指向本地或云端 API endpoint。
 
 ## 项目结构
@@ -189,7 +197,7 @@ squad-room/
   docs/           # 产品、架构、部署和安全说明
   packages/
     shared/       # 共享配置参考
-  skills/         # 可编辑的队友工作方法
+  skills/         # 可编辑的 Agent 工作方法
   scripts/        # 本地验证工具
   .env.example
   SECURITY.md
@@ -197,4 +205,4 @@ squad-room/
 
 ## 当前状态
 
-Squad Room 仍是早期 MVP，适合个人使用和开发者实验。它已经可以上手使用，但产品界面和 agent 工作流还在持续迭代。
+Squad Room 仍处于早期 MVP 阶段，适合个人使用和开发者实验。核心流程已经可用，界面、工具和 Agent 工作流仍在持续迭代。
