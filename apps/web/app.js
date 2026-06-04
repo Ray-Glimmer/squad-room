@@ -10,13 +10,13 @@ const translations = {
     "nav.meeting": "Meeting",
     "nav.dashboard": "Dashboard",
     "nav.settings": "Settings",
-    "home.eyebrow": "Personal AI competition team",
-    "home.title": "Open a focused room for your AI advisor squad.",
+    "home.eyebrow": "Personal AI meeting room",
+    "home.title": "Open a focused room for problems that need discussion.",
     "home.subtitle": "Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.",
     "home.start": "Start a meeting",
     "home.demo": "Load demo",
     "home.previewNow": "Now",
-    "home.previewDecision": "Clarify the real contest problem before generating ideas.",
+    "home.previewDecision": "Clarify the real problem before generating ideas.",
     "home.previewNext": "Next",
     "home.previewAction": "Run one stage, inspect the brief, then keep the room moving.",
     "home.previewWatch": "Watch",
@@ -24,14 +24,14 @@ const translations = {
     "setup.title": "Create a room",
     "setup.subtitle": "Only the inputs needed to start the discussion live here. Capabilities and diagnostics have their own pages.",
     "setup.topic": "Topic",
-    "setup.topicPlaceholder": "AI education contest idea",
-    "setup.contestType": "Contest type",
+    "setup.topicPlaceholder": "Product decision, research question, project plan...",
+    "setup.contestType": "Discussion type",
     "setup.goal": "Goal",
     "setup.goalPlaceholder": "Get from rough idea to pitch-ready plan",
     "setup.constraints": "Constraints",
     "setup.constraintsPlaceholder": "Deadline, team size, required deliverables, tools, budget...",
     "setup.materials": "Project materials",
-    "setup.materialsPlaceholder": "Paste contest rules, judging criteria, notes, source excerpts, or existing project context...",
+    "setup.materialsPlaceholder": "Paste requirements, criteria, notes, source excerpts, or existing project context...",
     "setup.importFiles": "Import files",
     "setup.openRoom": "Open room",
     "room.eyebrow": "Meeting room",
@@ -91,13 +91,13 @@ const translations = {
     "nav.meeting": "会议室",
     "nav.dashboard": "看板",
     "nav.settings": "设置",
-    "home.eyebrow": "个人 AI 比赛小队",
-    "home.title": "为你的 AI 顾问团打开一个专注会议室。",
+    "home.eyebrow": "个人 AI 会议室",
+    "home.title": "为需要讨论的问题打开一个专注会议室。",
     "home.subtitle": "输入主题，带入项目资料，让小队把混乱想法整理成决策、任务和下一步行动。",
     "home.start": "开始会议",
     "home.demo": "载入示例",
     "home.previewNow": "当前",
-    "home.previewDecision": "先澄清真正的竞赛问题，再开始发散想法。",
+    "home.previewDecision": "先澄清真正的问题，再开始发散想法。",
     "home.previewNext": "下一步",
     "home.previewAction": "运行一个阶段，查看简报，再继续推进会议。",
     "home.previewWatch": "注意",
@@ -105,14 +105,14 @@ const translations = {
     "setup.title": "创建会议室",
     "setup.subtitle": "首页只保留启动讨论需要的信息。能力配置和运行诊断放到独立页面。",
     "setup.topic": "主题",
-    "setup.topicPlaceholder": "AI 教育比赛想法",
-    "setup.contestType": "比赛类型",
+    "setup.topicPlaceholder": "产品决策、研究问题、项目方案...",
+    "setup.contestType": "问题类型",
     "setup.goal": "目标",
     "setup.goalPlaceholder": "从粗略想法推进到可路演方案",
     "setup.constraints": "约束",
     "setup.constraintsPlaceholder": "截止时间、团队规模、交付物、工具、预算...",
     "setup.materials": "项目资料",
-    "setup.materialsPlaceholder": "粘贴比赛规则、评分标准、笔记、资料摘录或已有项目上下文...",
+    "setup.materialsPlaceholder": "粘贴需求、判断标准、笔记、资料摘录或已有项目上下文...",
     "setup.importFiles": "导入文件",
     "setup.openRoom": "打开会议室",
     "room.eyebrow": "会议室",
@@ -174,14 +174,14 @@ const members = [
   ["engineer", "Engineer", "Checks technical feasibility and implementation path.", "#0891b2"],
   ["strategist", "Strategist", "Thinks about users, market, and value.", "#16a34a"],
   ["designer", "Designer", "Shapes experience, story, and presentation.", "#db2777"],
-  ["critic", "Critic", "Finds weak spots and asks hard judge questions.", "#7c3aed"]
+  ["critic", "Critic", "Finds weak spots and asks hard stakeholder questions.", "#7c3aed"]
 ].map(([id, name, role, color]) => ({ id, name, role, color }));
 
 const stages = ["Framing", "Brainstorming", "Feasibility", "Challenge", "Convergence", "Action Plan", "Pitch Prep"];
 const proposalKeywords = ["建议", "定位", "目标", "用户", "方案", "方向", "差异化", "定义", "proposal", "position", "goal", "user"];
 const actionKeywords = ["任务", "下一步", "立刻", "24小时", "测试", "产出", "发布", "执行", "验证", "模板", "build", "next", "step", "test"];
 const riskKeywords = ["风险", "漏洞", "假设", "失败", "成本", "屏蔽", "节奏", "不够", "问题", "risk", "weak", "cost", "fail"];
-const questionKeywords = ["问题", "评委", "为什么", "是否", "如何证明", "怎么", "question", "why", "whether"];
+const questionKeywords = ["问题", "相关方", "为什么", "是否", "如何证明", "怎么", "question", "why", "whether"];
 const MATERIAL_TEXT_LIMIT = 12000;
 const MATERIAL_FILE_SIZE_LIMIT = 10 * 1024 * 1024;
 
@@ -357,11 +357,11 @@ meetingForm.addEventListener("submit", async (event) => {
 });
 
 loadDemoButton.addEventListener("click", () => {
-  meetingForm.elements.topic.value = "AI squad room for student competitions";
-  meetingForm.elements.contestType.value = "Computer Science Competition";
-  meetingForm.elements.goal.value = "Turn a rough product idea into a pitch-ready MVP plan";
+  meetingForm.elements.topic.value = "Should we build a lightweight AI meeting room for personal project decisions?";
+  meetingForm.elements.contestType.value = "Product Decision";
+  meetingForm.elements.goal.value = "Turn a rough product idea into a clear MVP direction and next-step plan";
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
-  meetingForm.elements.projectMaterials.value = "Judging criteria: working demo, feasibility, user value, and pitch clarity. Existing idea: a personal AI squad room.";
+  meetingForm.elements.projectMaterials.value = "Decision criteria: useful discussion quality, feasibility, privacy, ease of setup, and clear next actions. Existing idea: a personal multi-agent meeting room.";
   apiBaseInput.value = apiBase;
 });
 

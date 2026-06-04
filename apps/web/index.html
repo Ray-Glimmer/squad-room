@@ -31,7 +31,7 @@
       <section id="homeView" class="page-view home-view">
         <section class="home-hero">
           <div class="home-copy">
-            <p class="eyebrow" data-i18n="home.eyebrow">Personal AI competition team</p>
+            <p class="eyebrow" data-i18n="home.eyebrow">Personal AI meeting room</p>
             <h1 data-i18n="home.title">Open a focused room for your AI advisor squad.</h1>
             <p data-i18n="home.subtitle">
               Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.
@@ -44,7 +44,7 @@
           <div class="home-preview" aria-label="Squad Room preview">
             <div>
               <span data-i18n="home.previewNow">Now</span>
-              <strong data-i18n="home.previewDecision">Clarify the real contest problem before generating ideas.</strong>
+              <strong data-i18n="home.previewDecision">Clarify the real problem before generating ideas.</strong>
             </div>
             <div>
               <span data-i18n="home.previewNext">Next</span>
@@ -64,17 +64,18 @@
           </div>
           <label>
             <span data-i18n="setup.topic">Topic</span>
-            <input name="topic" placeholder="AI education contest idea" data-i18n-placeholder="setup.topicPlaceholder" required />
+            <input name="topic" placeholder="Product decision, research question, project plan..." data-i18n-placeholder="setup.topicPlaceholder" required />
           </label>
           <label>
-            <span data-i18n="setup.contestType">Contest type</span>
+            <span data-i18n="setup.contestType">Discussion type</span>
             <select name="contestType">
               <option>General</option>
-              <option>Business Competition</option>
-              <option>Computer Science Competition</option>
-              <option>Design Competition</option>
-              <option>Investment Competition</option>
-              <option>Hackathon</option>
+              <option>Product Decision</option>
+              <option>Project Planning</option>
+              <option>Research Question</option>
+              <option>Design Review</option>
+              <option>Investment Analysis</option>
+              <option>Competition Prep</option>
             </select>
           </label>
           <label>
@@ -87,7 +88,7 @@
           </label>
           <label>
             <span data-i18n="setup.materials">Project materials</span>
-            <textarea name="projectMaterials" placeholder="Paste contest rules, judging criteria, notes, source excerpts, or existing project context..." data-i18n-placeholder="setup.materialsPlaceholder"></textarea>
+            <textarea name="projectMaterials" placeholder="Paste requirements, criteria, notes, source excerpts, or existing project context..." data-i18n-placeholder="setup.materialsPlaceholder"></textarea>
           </label>
           <div class="material-import">
             <input

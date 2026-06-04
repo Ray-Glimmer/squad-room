@@ -2,9 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Squad Room is a local-first multi-agent meeting room for personal planning, competitions, project work, and structured brainstorming.
+Squad Room is a local-first multi-agent meeting room for problems that benefit from structured discussion.
 
-Create a room, provide a topic and project context, and let a small AI team discuss, challenge, research, summarize, and turn ideas into action.
+Create a room, provide a topic and project context, and let a small AI team discuss, challenge, research, summarize, and turn ideas into action. Use it for product decisions, project planning, research questions, competition prep, investment analysis, design critique, or any problem that needs more than one perspective.
 
 [Live frontend](https://ray-glimmer.github.io/squad-room_agents/) · [Security](SECURITY.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -129,7 +129,7 @@ Files are parsed locally in the browser. When you open a room, extracted text be
 | Engineer | Checks feasibility, implementation path, and technical risk. |
 | Strategist | Evaluates users, market, positioning, and value. |
 | Designer | Shapes experience, story, visuals, and demo flow. |
-| Critic | Tests assumptions and raises judge-style objections. |
+| Critic | Tests assumptions and raises stakeholder-style objections. |
 
 Agent skills live in `skills/` as editable Markdown files. Directory-style skill packs are also supported:
 

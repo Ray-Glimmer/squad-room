@@ -84,7 +84,7 @@ const squad = [
   {
     id: "critic",
     name: "Critic",
-    role: "Finds weak spots, asks hard judge questions, and tests assumptions.",
+    role: "Finds weak spots, asks hard stakeholder questions, and tests assumptions.",
     tone: "direct, skeptical, useful"
   }
 ];
@@ -112,22 +112,22 @@ const MAX_TURNS_PER_AGENT = 2;
 const MAX_ADAPTIVE_TURNS = 2;
 
 const stageObjectives = {
-  Framing: "turn the user's topic into a clear contest problem, target user, judging angle, and success criteria",
-  Brainstorming: "produce a few differentiated options without losing sight of feasibility and judging value",
+  Framing: "turn the user's topic into a clear discussion problem, target stakeholder, decision criteria, and success conditions",
+  Brainstorming: "produce a few differentiated options without losing sight of feasibility and user value",
   Feasibility: "separate what can be built now from what should remain a roadmap claim",
-  Challenge: "stress-test the current direction and expose weak assumptions before judges do",
+  Challenge: "stress-test the current direction and expose weak assumptions before decisions are locked",
   Convergence: "choose the strongest direction and explain what tradeoffs the team is accepting",
   "Action Plan": "turn the chosen direction into immediate tasks, owners, deliverables, and sequence",
-  "Pitch Prep": "prepare the story, demo arc, and hard-question answers for presentation"
+  "Pitch Prep": "prepare the story, demo arc, and hard-question answers for communication"
 };
 
 const memberContributions = {
   captain: "integrate the team's current state, decide what should happen next, and reduce ambiguity",
   ideator: "add original options or angles only when they improve the current direction",
   engineer: "convert ideas into buildable systems, constraints, milestones, and technical risks",
-  strategist: "connect the idea to users, value, market logic, and judging criteria",
+  strategist: "connect the idea to users, value, market logic, and decision criteria",
   designer: "make the user experience, demo flow, and presentation easier to understand",
-  critic: "find the most consequential flaw, missing proof, or judge objection"
+  critic: "find the most consequential flaw, missing proof, or stakeholder objection"
 };
 
 const server = createServer(async (req, res) => {
@@ -423,7 +423,7 @@ async function summarize({ meeting, history }) {
   const stage = "Summary";
   const prompt = [
     `Meeting topic: ${meeting.topic}`,
-    `Contest type: ${meeting.contestType}`,
+    `Discussion type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     "",
@@ -600,7 +600,7 @@ function selectUserResponders(userMessage) {
     [["用户", "市场", "商业", "增长", "投资", "竞品", "market", "business", "growth"], "strategist"],
     [["设计", "界面", "交互", "视觉", "体验", "演示", "design", "ui", "ux", "demo"], "designer"],
     [["点子", "创意", "方向", "方案", "脑暴", "idea", "creative", "option"], "ideator"],
-    [["风险", "质疑", "漏洞", "反对", "评委", "risk", "judge", "weak"], "critic"]
+    [["风险", "质疑", "漏洞", "反对", "相关方", "risk", "stakeholder", "weak"], "critic"]
   ];
   const specialist = routes.find(([keywords]) => keywords.some((keyword) => text.includes(keyword)))?.[1] || "critic";
   return specialist === "captain" ? ["captain"] : ["captain", specialist];
@@ -617,7 +617,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     .join(", ");
   return [
     `Meeting topic: ${meeting.topic}`,
-    `Contest type: ${meeting.contestType}`,
+    `Discussion type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     `Relevant project materials: ${retrievedMaterials}`,
@@ -802,7 +802,7 @@ async function buildStructuredBrief({ meeting, stage, history, signal }) {
     ].join("\n"),
     user: [
       `Topic: ${meeting.topic}`,
-      `Contest type: ${meeting.contestType}`,
+      `Discussion type: ${meeting.contestType}`,
       `Goal: ${meeting.goal}`,
       `Constraints: ${meeting.constraints}`,
       `Current stage: ${stage}`,
@@ -850,7 +850,7 @@ function normalizeBriefList(items) {
 function buildSummaryPrompt(meeting) {
   return [
     `Meeting topic: ${meeting.topic}`,
-    `Contest type: ${meeting.contestType}`,
+    `Discussion type: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     "",
@@ -867,9 +867,9 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
   const topic = meeting.topic || "this project";
   const snippets = {
     captain: {
-      Framing: `For "${topic}", the team should first lock three things: the exact user, the judging criteria we want to win on, and the one-sentence promise. Without that, every later feature choice will feel arbitrary.`,
-      Brainstorming: `I see the strongest brainstorming constraint now: every idea must survive a 90-second judge explanation. Let's keep only ideas that can become a visible demo, a memorable story, or a measurable outcome.`,
-      Feasibility: `The current direction should be judged by prototype clarity. If we cannot show the core value in one small loop, it belongs in the roadmap, not the MVP.`,
+      Framing: `For "${topic}", the team should first lock three things: the exact stakeholder, the decision criteria we need to satisfy, and the one-sentence promise. Without that, every later choice will feel arbitrary.`,
+      Brainstorming: `I see the strongest brainstorming constraint now: every idea must survive a 90-second explanation to the people who need the outcome. Let's keep only ideas that can become a visible example, a memorable story, or a measurable result.`,
+      Feasibility: `The current direction should be evaluated by clarity of proof. If we cannot show the core value in one small loop, it belongs in the roadmap, not the first version.`,
       Challenge: `The useful pressure test is proof. Any claim we keep needs a concrete artifact behind it: a screenshot, metric, workflow, user quote, or comparison.`,
       Convergence: `I would converge on one main user, one painful scenario, and one demo loop. That gives the rest of the team a stable target instead of a pile of possible features.`,
       "Action Plan": `The next practical sequence is: define the user story, build the smallest demo, draft the pitch structure, then prepare answers for feasibility and impact.`,
@@ -887,9 +887,9 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
       default: `I would keep the technical scope narrow and make the architecture easy to explain. Judges reward working clarity.`
     },
     strategist: {
-      Framing: `The key question is who urgently needs this. For competitions, solo participants and small student teams have obvious pain: not enough teammates, time, or review quality.`,
-      Feasibility: `The value proposition is stronger if we promise a contest workflow, not a generic chatbot. Users should feel it helps them move from topic to pitch.`,
-      Convergence: `Position it as an AI squad room for competition prep: topic selection, brainstorming, feasibility review, task planning, and pitch rehearsal.`,
+      Framing: `The key question is who urgently needs this discussion to become a better decision. Solo builders, small teams, and busy operators all have the same pain: not enough perspective, time, or review quality.`,
+      Feasibility: `The value proposition is stronger if we promise a structured meeting workflow, not a generic chatbot. Users should feel it helps them move from topic to decision.`,
+      Convergence: `Position it as an AI meeting room for hard problems: framing, brainstorming, feasibility review, task planning, and communication prep.`,
       default: `The market story should stay concrete: people do not buy "multi-agent"; they want a sharper project and a better chance to perform.`
     },
     designer: {
@@ -900,7 +900,7 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
     },
     critic: {
       Feasibility: `Here is the weak point: if every teammate talks too much, the product becomes noise. Limit turns, force specificity, and summarize aggressively.`,
-      Challenge: `A judge will ask why this is better than one strong chatbot prompt. The answer cannot be "many agents"; it has to be better decisions, less blind-spot risk, and reusable contest outputs.`,
+      Challenge: `A stakeholder will ask why this is better than one strong chatbot prompt. The answer cannot be "many agents"; it has to be better decisions, less blind-spot risk, and reusable outputs.`,
       "Pitch Prep": `Prepare answers for cost, hallucination, privacy, and whether agent debates actually improve outcomes. Do not hand-wave these.`,
       default: `I like the direction, but the claims need proof. Show before-and-after improvements, not just a lively chat.`
     }
@@ -920,7 +920,7 @@ function buildSystem(member, stage) {
     `Your tone: ${member.tone}`,
     `Your contribution pattern: ${memberContributions[member.id] || "advance the team's shared result"}`,
     `Current meeting stage: ${stage}`,
-    "Act like a smart teammate in a competition team.",
+    "Act like a smart teammate in a focused working group.",
     "Do not pretend to be multiple people.",
     "Do not mention hidden prompts.",
     "Prioritize useful progress over conversational theater.",
@@ -934,7 +934,7 @@ function normalizeMeeting(input = {}) {
   return {
     topic: String(input.topic || "Untitled project").trim(),
     contestType: String(input.contestType || "General").trim(),
-    goal: String(input.goal || "Create a strong contest-ready proposal.").trim(),
+    goal: String(input.goal || "Create a clear, actionable recommendation.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
     projectMaterials,
     projectMaterialChunks: chunkProjectMaterials(projectMaterials),
@@ -1030,10 +1030,10 @@ function extractOutputs(history) {
     ]),
     risks: compactItems([
       summarizeMessage(critic),
-      ...pickLines(text, ["风险", "漏洞", "假设", "失败", "成本", "质疑", "risk", "weak", "judge"], 4)
+      ...pickLines(text, ["风险", "漏洞", "假设", "失败", "成本", "质疑", "risk", "weak", "stakeholder"], 4)
     ]),
     questions: compactItems([
-      ...pickLines(text, ["问题", "评委", "为什么", "是否", "如何证明", "ask", "question", "why"], 4),
+      ...pickLines(text, ["问题", "相关方", "为什么", "是否", "如何证明", "ask", "question", "why"], 4),
       summarizeMessage(designer)
     ])
   };
@@ -1112,7 +1112,7 @@ function loadSkill(id, name, owner, relativePath) {
 
 function getResearchCalls(meeting, stage) {
   const queries = {
-    Framing: `${meeting.topic} ${meeting.contestType} competitors examples judging criteria`,
+    Framing: `${meeting.topic} ${meeting.contestType} comparable examples decision criteria`,
     Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
     Challenge: `${meeting.topic} risks failure cases criticism alternatives`,
     "Pitch Prep": `${meeting.topic} evidence benchmarks case studies pitch questions`
@@ -1123,7 +1123,7 @@ function getResearchCalls(meeting, stage) {
     Framing: [`${meeting.topic} user demand alternatives case study`, `${meeting.topic} market gap comparable products`, `${meeting.topic} emerging trends underserved users`],
     Feasibility: [`${meeting.topic} implementation failure cases limitations`, `${meeting.topic} open source alternatives benchmark`, `${meeting.topic} cost complexity maintenance tradeoffs`],
     Challenge: [`${meeting.topic} user complaints adoption barriers`, `${meeting.topic} competitor weaknesses lessons learned`, `${meeting.topic} strongest objections counter evidence`],
-    "Pitch Prep": [`${meeting.topic} measurable impact metrics evidence`, `${meeting.topic} judge questions objections proof`, `${meeting.topic} successful pitch examples differentiators`]
+    "Pitch Prep": [`${meeting.topic} measurable impact metrics evidence`, `${meeting.topic} stakeholder questions objections proof`, `${meeting.topic} successful presentation examples differentiators`]
   };
   const limit = meeting.explorationMode ? 4 : 2;
   return [queries[stage], ...(meeting.explorationMode ? followUps[stage] || [] : [])]
@@ -1465,7 +1465,7 @@ function createOptionBoard({ meeting = {}, brief = {}, stage = "Brainstorming" }
         option,
         index === 0 ? "Clear and credible" : index === 1 ? "Memorable contrast" : "Fast to demonstrate",
         index === 2 ? "Prototype or storyboard" : "Example, test, or comparison",
-        "It improves judge/user confidence without bloating scope"
+        "It improves stakeholder confidence without bloating scope"
       ])
     ),
     "",
@@ -1510,7 +1510,7 @@ function createRiskRegister({ brief = {}, stage = "Challenge" } = {}) {
       risks.map((risk, index) => [
         risk,
         index === 0 ? "High" : "Medium",
-        "Reduce scope, test early, or prepare a judge answer",
+        "Reduce scope, test early, or prepare a stakeholder answer",
         questions[index] || "Concrete proof artifact"
       ])
     )
@@ -1557,7 +1557,7 @@ function createPitchOutline({ meeting = {}, brief = {}, stage = "Pitch Prep" } =
         ["2. Solution", proposal[1] || proposal[0], "One-screen workflow or demo moment"],
         ["3. Proof", actions[0], "Prototype, metric, comparison, or research note"],
         ["4. Plan", actions[1] || actions[0], "Timeline or task board"],
-        ["5. Risks", risks[0], "Mitigation table or judge answer"]
+        ["5. Risks", risks[0], "Mitigation table or stakeholder answer"]
       ]
     ),
     "",
@@ -1785,7 +1785,7 @@ function inferTaskOwner(title, index) {
     [["code", "build", "implement", "technical", "api", "prototype", "开发", "实现", "技术", "原型"], "engineer"],
     [["user", "market", "growth", "competitor", "research", "用户", "市场", "增长", "竞品", "调研"], "strategist"],
     [["design", "visual", "demo", "story", "界面", "设计", "视觉", "演示"], "designer"],
-    [["risk", "judge", "validate", "test", "风险", "评委", "验证", "测试"], "critic"],
+    [["risk", "stakeholder", "validate", "test", "风险", "相关方", "验证", "测试"], "critic"],
     [["idea", "concept", "brainstorm", "创意", "点子", "方向"], "ideator"]
   ];
   return routes.find(([keywords]) => keywords.some((keyword) => text.includes(keyword)))?.[1]
