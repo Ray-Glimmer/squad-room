@@ -27,7 +27,7 @@ const requiredTools = [
   "create_feasibility_checklist",
   "create_risk_register",
   "create_decision_matrix",
-  "create_pitch_outline"
+  "create_communication_outline"
 ];
 
 const capabilities = json("packages/shared/capabilities.json");

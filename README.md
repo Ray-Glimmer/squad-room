@@ -4,7 +4,7 @@
 
 Squad Room is a local-first multi-agent meeting room for problems that benefit from structured discussion.
 
-Create a room, provide a topic and project context, and let a small AI team discuss, challenge, research, summarize, and turn ideas into action. Use it for product decisions, project planning, research questions, competition prep, investment analysis, design critique, or any problem that needs more than one perspective.
+Create a room, provide a topic and project context, and let a small AI team discuss, challenge, research, summarize, and turn ideas into action. Use it for product decisions, project planning, research questions, investment analysis, design critique, personal decisions, or any problem that needs more than one perspective.
 
 [Live frontend](https://ray-glimmer.github.io/squad-room_agents/) · [Security](SECURITY.md) · [Architecture](docs/ARCHITECTURE.md)
 
@@ -152,7 +152,7 @@ skills/captain/meeting-qa/
 | Create Feasibility Checklist | Converts feasibility concerns into checks. | No |
 | Create Risk Register | Captures risks, mitigations, and evidence needs. | No |
 | Create Decision Matrix | Compares converging options. | No |
-| Create Pitch Outline | Turns a plan into a slide-by-slide story. | No |
+| Create Communication Outline | Turns a plan into a clear stakeholder handoff or demo story. | No |
 | Web Research | Searches stage-relevant topics when enabled. | Optional |
 
 Artifact tools return Markdown for reading and structured JSON for future filtering, export, or richer rendering. Automatic web research is off by default.

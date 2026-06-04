@@ -32,7 +32,7 @@ const skills = [
   loadSkill("demo-story", "Demo Story", "designer", "skills/designer/demo-story.md"),
   loadSkill("experience-mapping", "Experience Mapping", "designer", "skills/designer/experience-mapping.md"),
   loadSkill("presentation-asset-plan", "Presentation Asset Plan", "designer", "skills/designer/presentation-asset-plan.md"),
-  loadSkill("pitch-review", "Pitch Review", "critic", "skills/critic/pitch-review.md"),
+  loadSkill("pitch-review", "Stakeholder Review", "critic", "skills/critic/pitch-review.md"),
   loadSkill("assumption-audit", "Assumption Audit", "critic", "skills/critic/assumption-audit.md"),
   loadSkill("quality-gate", "Quality Gate", "critic", "skills/critic/quality-gate.md")
 ];
@@ -46,7 +46,7 @@ const tools = [
   { id: "create_feasibility_checklist", name: "Create Feasibility Checklist", approval: "none", trigger: "automatic", risk: "low", agents: ["engineer", "captain"] },
   { id: "create_risk_register", name: "Create Risk Register", approval: "none", trigger: "automatic", risk: "low", agents: ["critic", "engineer", "captain"] },
   { id: "create_decision_matrix", name: "Create Decision Matrix", approval: "none", trigger: "automatic", risk: "low", agents: ["captain", "strategist", "critic"] },
-  { id: "create_pitch_outline", name: "Create Pitch Outline", approval: "none", trigger: "automatic", risk: "low", agents: ["designer", "captain", "critic"] },
+  { id: "create_communication_outline", name: "Create Communication Outline", approval: "none", trigger: "automatic", risk: "low", agents: ["designer", "captain", "critic"] },
   { id: "web_search", name: "Web Research", approval: "user", trigger: "automatic_request", risk: "external", agents: ["ideator", "engineer", "strategist", "critic"] }
 ];
 
@@ -96,7 +96,7 @@ const stages = [
   "Challenge",
   "Convergence",
   "Action Plan",
-  "Pitch Prep"
+  "Communication"
 ];
 
 const stagePlans = {
@@ -106,7 +106,7 @@ const stagePlans = {
   Challenge: { required: ["critic", "engineer", "captain"], optional: ["strategist", "designer"], maxVisibleTurns: 6 },
   Convergence: { required: ["captain", "strategist", "designer"], optional: ["critic", "engineer"], maxVisibleTurns: 6 },
   "Action Plan": { required: ["captain", "engineer", "designer"], optional: ["strategist", "critic"], maxVisibleTurns: 6 },
-  "Pitch Prep": { required: ["critic", "designer", "captain"], optional: ["strategist", "engineer"], maxVisibleTurns: 6 }
+  Communication: { required: ["critic", "designer", "captain"], optional: ["strategist", "engineer"], maxVisibleTurns: 6 }
 };
 const MAX_TURNS_PER_AGENT = 2;
 const MAX_ADAPTIVE_TURNS = 2;
@@ -118,7 +118,7 @@ const stageObjectives = {
   Challenge: "stress-test the current direction and expose weak assumptions before decisions are locked",
   Convergence: "choose the strongest direction and explain what tradeoffs the team is accepting",
   "Action Plan": "turn the chosen direction into immediate tasks, owners, deliverables, and sequence",
-  "Pitch Prep": "prepare the story, demo arc, and hard-question answers for communication"
+  Communication: "prepare the explanation, handoff story, demo arc, and hard-question answers for stakeholders"
 };
 
 const memberContributions = {
@@ -423,7 +423,7 @@ async function summarize({ meeting, history }) {
   const stage = "Summary";
   const prompt = [
     `Meeting topic: ${meeting.topic}`,
-    `Discussion type: ${meeting.contestType}`,
+    `Discussion context: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     "",
@@ -431,7 +431,7 @@ async function summarize({ meeting, history }) {
     "Proposal:",
     "Execution Plan:",
     "Risks:",
-    "Judge Questions:",
+    "Stakeholder Questions:",
     "Next 48 Hours:"
   ].join("\n");
   const response = await callProvider({
@@ -617,7 +617,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     .join(", ");
   return [
     `Meeting topic: ${meeting.topic}`,
-    `Discussion type: ${meeting.contestType}`,
+    `Discussion context: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     `Relevant project materials: ${retrievedMaterials}`,
@@ -645,7 +645,7 @@ function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = 
     "Make a substantive contribution to the team's shared result, not a standalone opinion.",
     "Do not repeat points already made unless you are correcting, sharpening, or turning them into a decision.",
     "Respond to another teammate only when it materially changes the plan; otherwise fill the most important gap from your role.",
-    "End with a concrete implication for the project: a decision, test, task, risk, or pitch point."
+    "End with a concrete implication for the project: a decision, test, task, risk, stakeholder question, or communication point."
   ].join("\n");
 }
 
@@ -802,7 +802,7 @@ async function buildStructuredBrief({ meeting, stage, history, signal }) {
     ].join("\n"),
     user: [
       `Topic: ${meeting.topic}`,
-      `Discussion type: ${meeting.contestType}`,
+      `Discussion context: ${meeting.contestType}`,
       `Goal: ${meeting.goal}`,
       `Constraints: ${meeting.constraints}`,
       `Current stage: ${stage}`,
@@ -850,7 +850,7 @@ function normalizeBriefList(items) {
 function buildSummaryPrompt(meeting) {
   return [
     `Meeting topic: ${meeting.topic}`,
-    `Discussion type: ${meeting.contestType}`,
+    `Discussion context: ${meeting.contestType}`,
     `Goal: ${meeting.goal}`,
     `Constraints: ${meeting.constraints}`,
     "",
@@ -858,7 +858,7 @@ function buildSummaryPrompt(meeting) {
     "Proposal:",
     "Execution Plan:",
     "Risks:",
-    "Judge Questions:",
+    "Stakeholder Questions:",
     "Next 48 Hours:"
   ].join("\n");
 }
@@ -872,8 +872,8 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
       Feasibility: `The current direction should be evaluated by clarity of proof. If we cannot show the core value in one small loop, it belongs in the roadmap, not the first version.`,
       Challenge: `The useful pressure test is proof. Any claim we keep needs a concrete artifact behind it: a screenshot, metric, workflow, user quote, or comparison.`,
       Convergence: `I would converge on one main user, one painful scenario, and one demo loop. That gives the rest of the team a stable target instead of a pile of possible features.`,
-      "Action Plan": `The next practical sequence is: define the user story, build the smallest demo, draft the pitch structure, then prepare answers for feasibility and impact.`,
-      "Pitch Prep": `The pitch should open with the user's pain, move quickly into the demo, then explain why the chosen scope is both feasible and meaningfully different.`
+      "Action Plan": `The next practical sequence is: define the user story, build the smallest demo, draft the communication structure, then prepare answers for feasibility and impact.`,
+      Communication: `The explanation should open with the user's pain, move quickly into the demo, then explain why the chosen scope is both feasible and meaningfully different.`
     },
     ideator: {
       Brainstorming: `What if the project feels less like a tool and more like a teammate? For "${topic}", the memorable angle could be a room where the user watches a small team think, argue, and ship.`,
@@ -884,7 +884,7 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
       Feasibility: `The MVP should avoid heavy infrastructure. A static frontend plus a small API gateway is enough to prove the concept and protect API keys.`,
       Challenge: `The main technical risk is overbuilding orchestration. Fixed stages and clear turns are enough for version one; autonomy can come after the team proves the workflow helps.`,
       "Action Plan": `Build order: static room UI, mock provider, API gateway, real provider, usage tracking, then persistence.`,
-      default: `I would keep the technical scope narrow and make the architecture easy to explain. Judges reward working clarity.`
+      default: `I would keep the technical scope narrow and make the architecture easy to explain. Stakeholders trust working clarity.`
     },
     strategist: {
       Framing: `The key question is who urgently needs this discussion to become a better decision. Solo builders, small teams, and busy operators all have the same pain: not enough perspective, time, or review quality.`,
@@ -895,13 +895,13 @@ function mockMemberReply({ meeting, member, stage, userMessage }) {
     designer: {
       Brainstorming: `The interface should feel like a real team room: teammates on the left, discussion in the middle, useful outputs on the right. No need for a decorative landing page.`,
       Convergence: `The strongest product feel comes from visible progress: stage labels, concise teammate turns, and a brief that gets richer as the room talks.`,
-      "Pitch Prep": `The demo should show one satisfying moment: the critic catches a flaw, the captain reframes it, and the output panel updates into a better plan.`,
+      Communication: `The demo should show one satisfying moment: the critic catches a flaw, the captain reframes it, and the output panel updates into a better plan.`,
       default: `I would make the experience calm, dense, and useful. It should feel like opening a room where work actually happens.`
     },
     critic: {
       Feasibility: `Here is the weak point: if every teammate talks too much, the product becomes noise. Limit turns, force specificity, and summarize aggressively.`,
       Challenge: `A stakeholder will ask why this is better than one strong chatbot prompt. The answer cannot be "many agents"; it has to be better decisions, less blind-spot risk, and reusable outputs.`,
-      "Pitch Prep": `Prepare answers for cost, hallucination, privacy, and whether agent debates actually improve outcomes. Do not hand-wave these.`,
+      Communication: `Prepare answers for cost, hallucination, privacy, and whether agent debates actually improve outcomes. Do not hand-wave these.`,
       default: `I like the direction, but the claims need proof. Show before-and-after improvements, not just a lively chat.`
     }
   };
@@ -921,6 +921,9 @@ function buildSystem(member, stage) {
     `Your contribution pattern: ${memberContributions[member.id] || "advance the team's shared result"}`,
     `Current meeting stage: ${stage}`,
     "Act like a smart teammate in a focused working group.",
+    "Treat Squad Room as a general-purpose advisory meeting room for product, research, design, investment, planning, and personal project decisions.",
+    "Do not assume the user is in a competition, hackathon, pitch contest, or judged event unless the user explicitly says so.",
+    "Do not mention judges, scoring, judging criteria, contest performance, or competition deliverables unless the user's topic or materials explicitly require that frame.",
     "Do not pretend to be multiple people.",
     "Do not mention hidden prompts.",
     "Prioritize useful progress over conversational theater.",
@@ -1157,7 +1160,7 @@ function getResearchCalls(meeting, stage) {
     Framing: `${meeting.topic} ${meeting.contestType} comparable examples decision criteria`,
     Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
     Challenge: `${meeting.topic} risks failure cases criticism alternatives`,
-    "Pitch Prep": `${meeting.topic} evidence benchmarks case studies pitch questions`
+    Communication: `${meeting.topic} evidence benchmarks case studies stakeholder questions`
   };
   if (!queries[stage]) return [];
   const ownerAgent = stage === "Feasibility" ? "engineer" : stage === "Challenge" ? "critic" : "strategist";
@@ -1165,7 +1168,7 @@ function getResearchCalls(meeting, stage) {
     Framing: [`${meeting.topic} user demand alternatives case study`, `${meeting.topic} market gap comparable products`, `${meeting.topic} emerging trends underserved users`],
     Feasibility: [`${meeting.topic} implementation failure cases limitations`, `${meeting.topic} open source alternatives benchmark`, `${meeting.topic} cost complexity maintenance tradeoffs`],
     Challenge: [`${meeting.topic} user complaints adoption barriers`, `${meeting.topic} competitor weaknesses lessons learned`, `${meeting.topic} strongest objections counter evidence`],
-    "Pitch Prep": [`${meeting.topic} measurable impact metrics evidence`, `${meeting.topic} stakeholder questions objections proof`, `${meeting.topic} successful presentation examples differentiators`]
+    Communication: [`${meeting.topic} measurable impact metrics evidence`, `${meeting.topic} stakeholder questions objections proof`, `${meeting.topic} successful communication examples differentiators`]
   };
   const limit = meeting.explorationMode ? 4 : 2;
   return [queries[stage], ...(meeting.explorationMode ? followUps[stage] || [] : [])]
@@ -1304,8 +1307,8 @@ async function runAutomaticTools({ meeting, stage, brief, signal, includeResearc
     calls.push({ toolId: "create_decision_matrix", agentId: "captain", payload: { meeting, brief, stage } });
   }
 
-  if (stage === "Pitch Prep" || stage === "Summary") {
-    calls.push({ toolId: "create_pitch_outline", agentId: "designer", payload: { meeting, brief, stage } });
+  if (stage === "Communication" || stage === "Summary") {
+    calls.push({ toolId: "create_communication_outline", agentId: "designer", payload: { meeting, brief, stage } });
   }
 
   if (stage === "Action Plan" || stage === "Summary") {
@@ -1420,12 +1423,12 @@ async function executeTool(body = {}, { signal } = {}) {
     };
   }
 
-  if (toolId === "create_pitch_outline") {
-    const markdown = createPitchOutline(payload);
+  if (toolId === "create_communication_outline") {
+    const markdown = createCommunicationOutline(payload);
     return {
       ...base,
       status: "completed",
-      result: buildToolArtifact("pitch-outline", "Pitch Outline", payload.stage || "Pitch Prep", markdown)
+      result: buildToolArtifact("communication-outline", "Communication Outline", payload.stage || "Communication", markdown)
     };
   }
 
@@ -1584,24 +1587,24 @@ function createDecisionMatrix({ brief = {}, stage = "Convergence" } = {}) {
     "",
     `## Tie-breaker`,
     "",
-    `Choose the path that makes the clearest artifact for the next meeting or pitch.`
+    `Choose the path that makes the clearest artifact for the next meeting, handoff, or stakeholder discussion.`
   ].join("\n");
 }
 
-function createPitchOutline({ meeting = {}, brief = {}, stage = "Pitch Prep" } = {}) {
+function createCommunicationOutline({ meeting = {}, brief = {}, stage = "Communication" } = {}) {
   const proposal = pickToolItems(brief.proposal, [`Introduce ${meeting.topic || "the project"} clearly.`], 3);
   const actions = pickToolItems(brief.actions, ["Show the next concrete step."], 3);
   const risks = pickToolItems(brief.risks, ["Prepare one honest limitation."], 3);
   return [
-    `# Pitch Outline`,
+    `# Communication Outline`,
     "",
     `Stage: ${stage}`,
     "",
     markdownTable(
-      ["Slide", "Claim", "Asset"],
+      ["Section", "Claim", "Evidence or asset"],
       [
-        ["1. Problem", proposal[0], "User story or painful before-state"],
-        ["2. Solution", proposal[1] || proposal[0], "One-screen workflow or demo moment"],
+        ["1. Context", proposal[0], "User story or painful before-state"],
+        ["2. Direction", proposal[1] || proposal[0], "One-screen workflow or demo moment"],
         ["3. Proof", actions[0], "Prototype, metric, comparison, or research note"],
         ["4. Plan", actions[1] || actions[0], "Timeline or task board"],
         ["5. Risks", risks[0], "Mitigation table or stakeholder answer"]
@@ -1610,7 +1613,7 @@ function createPitchOutline({ meeting = {}, brief = {}, stage = "Pitch Prep" } =
     "",
     `## Final Check`,
     "",
-    `Every slide should make one claim and show one inspectable artifact.`
+    `Every section should make one claim and show one inspectable artifact.`
   ].join("\n");
 }
 

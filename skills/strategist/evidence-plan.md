@@ -27,4 +27,4 @@ Turn strategic claims into evidence tasks.
 
 ## QA Gate
 
-A useful evidence plan changes what the team will build, pitch, or stop doing.
+A useful evidence plan changes what the team will build, explain, or stop doing.

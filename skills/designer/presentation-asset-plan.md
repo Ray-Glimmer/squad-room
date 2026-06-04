@@ -2,13 +2,13 @@
 
 ## Use
 
-Translate the team's idea into visible pitch or demo assets.
+Translate the team's idea into visible handoff, demo, or stakeholder communication assets.
 
 ## Inputs
 
 - Current direction
 - Demo story
-- Risks and judge questions
+- Risks and stakeholder questions
 
 ## Method
 

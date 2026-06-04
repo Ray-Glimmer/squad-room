@@ -7,7 +7,7 @@
       "tone": "steady, concise, encouraging",
       "color": "#2563eb",
       "skills": ["project-lead", "task-orchestration", "meeting-qa"],
-      "tools": ["read_project_file", "write_artifact", "update_task", "create_research_plan", "create_option_board", "create_risk_register", "create_decision_matrix", "create_pitch_outline"]
+      "tools": ["read_project_file", "write_artifact", "update_task", "create_research_plan", "create_option_board", "create_risk_register", "create_decision_matrix", "create_communication_outline"]
     },
     {
       "id": "ideator",
@@ -43,16 +43,16 @@
       "tone": "human-centered, concrete, expressive",
       "color": "#db2777",
       "skills": ["demo-story", "experience-mapping", "presentation-asset-plan"],
-      "tools": ["write_artifact", "create_option_board", "create_pitch_outline"]
+      "tools": ["write_artifact", "create_option_board", "create_communication_outline"]
     },
     {
       "id": "critic",
       "name": "Critic",
-      "role": "Finds weak spots, asks hard judge questions, and tests assumptions.",
+      "role": "Finds weak spots, asks hard stakeholder questions, and tests assumptions.",
       "tone": "direct, skeptical, useful",
       "color": "#7c3aed",
       "skills": ["pitch-review", "assumption-audit", "quality-gate"],
-      "tools": ["read_project_file", "web_search", "create_research_plan", "create_risk_register", "create_decision_matrix", "create_pitch_outline"]
+      "tools": ["read_project_file", "web_search", "create_research_plan", "create_risk_register", "create_decision_matrix", "create_communication_outline"]
     }
   ],
   "stages": [
@@ -62,6 +62,6 @@
     "Challenge",
     "Convergence",
     "Action Plan",
-    "Pitch Prep"
+    "Communication"
   ]
 }

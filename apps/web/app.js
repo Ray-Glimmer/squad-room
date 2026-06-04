@@ -32,9 +32,9 @@ const translations = {
     "setup.subtitle": "Only the inputs needed to start the discussion live here. Capabilities and diagnostics have their own pages.",
     "setup.topic": "Topic",
     "setup.topicPlaceholder": "Product decision, research question, project plan...",
-    "setup.contestType": "Discussion type",
+    "setup.contestType": "Discussion context",
     "setup.goal": "Goal",
-    "setup.goalPlaceholder": "Get from rough idea to pitch-ready plan",
+    "setup.goalPlaceholder": "Get from rough idea to decision-ready plan",
     "setup.constraints": "Constraints",
     "setup.constraintsPlaceholder": "Deadline, team size, required deliverables, tools, budget...",
     "setup.materials": "Project materials",
@@ -119,9 +119,9 @@ const translations = {
     "setup.subtitle": "首页只保留启动讨论需要的信息。能力配置和运行诊断放到独立页面。",
     "setup.topic": "主题",
     "setup.topicPlaceholder": "产品决策、研究问题、项目方案...",
-    "setup.contestType": "问题类型",
+    "setup.contestType": "讨论场景",
     "setup.goal": "目标",
-    "setup.goalPlaceholder": "从粗略想法推进到可路演方案",
+    "setup.goalPlaceholder": "从粗略想法推进到可决策方案",
     "setup.constraints": "约束",
     "setup.constraintsPlaceholder": "截止时间、团队规模、交付物、工具、预算...",
     "setup.materials": "项目资料",
@@ -194,7 +194,7 @@ let members = savedSquadConfig.members || structuredClone(defaultMembers);
 let disabledSkillIds = new Set(savedSquadConfig.disabledSkillIds || []);
 let disabledToolIds = new Set(savedSquadConfig.disabledToolIds || []);
 
-const stages = ["Framing", "Brainstorming", "Feasibility", "Challenge", "Convergence", "Action Plan", "Pitch Prep"];
+const stages = ["Framing", "Brainstorming", "Feasibility", "Challenge", "Convergence", "Action Plan", "Communication"];
 const proposalKeywords = ["建议", "定位", "目标", "用户", "方案", "方向", "差异化", "定义", "proposal", "position", "goal", "user"];
 const actionKeywords = ["任务", "下一步", "立刻", "24小时", "测试", "产出", "发布", "执行", "验证", "模板", "build", "next", "step", "test"];
 const riskKeywords = ["风险", "漏洞", "假设", "失败", "成本", "屏蔽", "节奏", "不够", "问题", "risk", "weak", "cost", "fail"];
@@ -1997,7 +1997,7 @@ function summarizeToolResult(activity) {
   if (activity.toolId === "create_feasibility_checklist") return "Feasibility checklist prepared.";
   if (activity.toolId === "create_risk_register") return "Risk register prepared.";
   if (activity.toolId === "create_decision_matrix") return "Decision matrix prepared.";
-  if (activity.toolId === "create_pitch_outline") return "Pitch outline prepared.";
+  if (activity.toolId === "create_communication_outline") return "Communication outline prepared.";
   if (activity.toolId === "update_task") {
     const count = Array.isArray(activity.result) ? activity.result.length : 0;
     return `${count} action ${count === 1 ? "item" : "items"} prepared.`;

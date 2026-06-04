@@ -10,7 +10,7 @@
     { "id": "evidence-plan", "name": "Evidence Plan", "owner": "strategist" },
     { "id": "demo-story", "name": "Demo Story", "owner": "designer" },
     { "id": "presentation-asset-plan", "name": "Presentation Asset Plan", "owner": "designer" },
-    { "id": "pitch-review", "name": "Pitch Review", "owner": "critic" },
+    { "id": "pitch-review", "name": "Stakeholder Review", "owner": "critic" },
     { "id": "quality-gate", "name": "Quality Gate", "owner": "critic" }
   ],
   "tools": [
@@ -22,7 +22,7 @@
     { "id": "create_feasibility_checklist", "name": "Create Feasibility Checklist", "approval": "none", "trigger": "automatic" },
     { "id": "create_risk_register", "name": "Create Risk Register", "approval": "none", "trigger": "automatic" },
     { "id": "create_decision_matrix", "name": "Create Decision Matrix", "approval": "none", "trigger": "automatic" },
-    { "id": "create_pitch_outline", "name": "Create Pitch Outline", "approval": "none", "trigger": "automatic" },
+    { "id": "create_communication_outline", "name": "Create Communication Outline", "approval": "none", "trigger": "automatic" },
     { "id": "web_search", "name": "Web Research", "approval": "user", "trigger": "automatic_request" }
   ]
 }

@@ -8,7 +8,7 @@ Chinese name: 小队会议室
 
 Positioning: a personal multi-agent meeting room for problems that benefit from structured discussion, multiple perspectives, and actionable follow-through.
 
-Example scenarios include product decisions, project planning, research questions, design reviews, investment analysis, competition preparation, and complex personal work.
+Example scenarios include product decisions, project planning, research questions, design reviews, investment analysis, personal decisions, and complex personal work.
 
 ## Target User
 
@@ -47,7 +47,7 @@ Early users are solo builders, students, independent makers, operators, research
 4. Challenge
 5. Convergence
 6. Action Plan
-7. Pitch Prep
+7. Communication
 
 ## MVP Screens
 
@@ -69,7 +69,7 @@ Early users are solo builders, students, independent makers, operators, research
 - Imported files are parsed locally in the browser and added to the bounded meeting context.
 - Teammates receive role-specific working methods from editable Markdown files.
 - Low-risk local tools run automatically at bounded stages to read explicit context, create a Markdown artifact, and create tasks from the brief.
-- Stage artifact tools create a research plan, option board, feasibility checklist, risk register, decision matrix, and pitch outline as the meeting progresses.
+- Stage artifact tools create a research plan, option board, feasibility checklist, risk register, decision matrix, and communication outline as the meeting progresses.
 - Artifact tools return Markdown plus structured JSON.
 - Skills can be simple Markdown files or directory-style skill packs with `manifest.json`, `SKILL.md`, and optional smoke tests.
 - A lightweight eval suite checks tool registration, skill pack shape, structured artifact output, retrieval hooks, and optional live API behavior.

@@ -70,7 +70,7 @@ create_option_board           Produce a comparable option board
 create_feasibility_checklist  Produce technical and execution checks
 create_risk_register          Produce a risk, mitigation, and evidence table
 create_decision_matrix        Produce a convergence comparison matrix
-create_pitch_outline          Produce a pitch or demo outline
+create_communication_outline  Produce a stakeholder handoff or demo outline
 web_search                    Fetch search results into shared context after approval, or automatically when the meeting toggle is enabled
 ```
 

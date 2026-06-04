@@ -4,7 +4,7 @@
 
 Squad Room，中文名“小队会议室”，是一个面向个人使用的多 Agent 会议室，适用于各类需要结构化讨论的问题。
 
-输入主题和项目资料后，小队会围绕目标展开讨论、质疑、检索和总结，并把讨论结果整理为可继续执行的简报与任务。它可以用于产品决策、项目规划、研究问题、比赛准备、投资分析、设计评审，以及其他需要多视角讨论的场景。
+输入主题和项目资料后，小队会围绕目标展开讨论、质疑、检索和总结，并把讨论结果整理为可继续执行的简报与任务。它可以用于产品决策、项目规划、研究问题、投资分析、设计评估、个人决策，以及其他需要多视角讨论的场景。
 
 [在线前端](https://ray-glimmer.github.io/squad-room_agents/) · [安全说明](SECURITY.md) · [架构说明](docs/ARCHITECTURE.md)
 
@@ -152,7 +152,7 @@ skills/captain/meeting-qa/
 | Create Feasibility Checklist | 将可行性问题转化为检查清单。 | 否 |
 | Create Risk Register | 汇总风险、缓解方式和证据需求。 | 否 |
 | Create Decision Matrix | 比较收敛阶段的备选方案。 | 否 |
-| Create Pitch Outline | 将方案整理为逐页路演故事。 | 否 |
+| Create Communication Outline | 将方案整理为清晰的沟通大纲、交接说明或演示故事。 | 否 |
 | Web Research | 开启后检索阶段相关信息。 | 可选 |
 
 产物工具会同时返回适合阅读的 Markdown 和适合后续筛选、导出、渲染的结构化 JSON。自动网页检索默认关闭。
