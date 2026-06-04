@@ -1,5 +1,6 @@
 const API_BASE_KEY = "squad-room-api-base";
 const LANGUAGE_KEY = "squad-room-language";
+const SQUAD_CONFIG_KEY = "squad-room-config";
 const defaultApiBase = localStorage.getItem(API_BASE_KEY) || "http://localhost:8787";
 const defaultLanguage = localStorage.getItem(LANGUAGE_KEY) || (navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en");
 
@@ -168,7 +169,7 @@ const translations = {
   }
 };
 
-const members = [
+const defaultMembers = [
   ["captain", "Captain", "Controls the room and summarizes decisions.", "#2563eb"],
   ["ideator", "Ideator", "Generates original angles and differentiators.", "#f97316"],
   ["engineer", "Engineer", "Checks technical feasibility and implementation path.", "#0891b2"],
@@ -176,6 +177,10 @@ const members = [
   ["designer", "Designer", "Shapes experience, story, and presentation.", "#db2777"],
   ["critic", "Critic", "Finds weak spots and asks hard stakeholder questions.", "#7c3aed"]
 ].map(([id, name, role, color]) => ({ id, name, role, color }));
+const savedSquadConfig = loadSquadConfig();
+let members = savedSquadConfig.members || structuredClone(defaultMembers);
+let disabledSkillIds = new Set(savedSquadConfig.disabledSkillIds || []);
+let disabledToolIds = new Set(savedSquadConfig.disabledToolIds || []);
 
 const stages = ["Framing", "Brainstorming", "Feasibility", "Challenge", "Convergence", "Action Plan", "Pitch Prep"];
 const proposalKeywords = ["建议", "定位", "目标", "用户", "方案", "方向", "差异化", "定义", "proposal", "position", "goal", "user"];
@@ -226,6 +231,7 @@ const meetingForm = document.querySelector("#meetingForm");
 const loadDemoButton = document.querySelector("#loadDemoButton");
 const languageButton = document.querySelector("#languageButton");
 const apiBaseInput = document.querySelector("#apiBaseInput");
+const resetConfigButton = document.querySelector("#resetConfigButton");
 const openRoomButton = document.querySelector("#openRoomButton");
 const newMeetingButton = document.querySelector("#newMeetingButton");
 const runMeetingButton = document.querySelector("#runMeetingButton");
@@ -314,13 +320,50 @@ function applyLanguage() {
   renderPauseState();
 }
 
+function openCreateRoomPanel({ focus = false } = {}) {
+  meetingForm.classList.remove("setup-collapsed");
+  meetingForm.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => {
+    meetingForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focus) meetingForm.elements.topic?.focus();
+  });
+}
+
+function loadSquadConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(SQUAD_CONFIG_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSquadConfig() {
+  localStorage.setItem(SQUAD_CONFIG_KEY, JSON.stringify({
+    members,
+    disabledSkillIds: [...disabledSkillIds],
+    disabledToolIds: [...disabledToolIds]
+  }));
+}
+
+function getSquadConfigPayload() {
+  return {
+    members,
+    disabledSkillIds: [...disabledSkillIds],
+    disabledToolIds: [...disabledToolIds]
+  };
+}
+
+function syncMeetingSquadConfig() {
+  if (meeting) meeting.squadConfig = getSquadConfigPayload();
+}
+
 navLinks.forEach((button) => {
   button.addEventListener("click", () => {
     const target = button.dataset.viewTarget;
     if (!target) return;
     showView(target);
     if (button.hasAttribute("data-focus-topic")) {
-      requestAnimationFrame(() => meetingForm.elements.topic?.focus());
+      openCreateRoomPanel({ focus: true });
     }
   });
 });
@@ -351,18 +394,32 @@ meetingForm.addEventListener("submit", async (event) => {
     projectMaterials: form.get("projectMaterials"),
     researchContext: "",
     autoWebResearch: autoResearchToggle.checked,
-    explorationMode: explorationModeToggle.checked
+    explorationMode: explorationModeToggle.checked,
+    squadConfig: getSquadConfigPayload()
   };
   await startMeeting();
 });
 
 loadDemoButton.addEventListener("click", () => {
+  openCreateRoomPanel();
   meetingForm.elements.topic.value = "Should we build a lightweight AI meeting room for personal project decisions?";
   meetingForm.elements.contestType.value = "Product Decision";
   meetingForm.elements.goal.value = "Turn a rough product idea into a clear MVP direction and next-step plan";
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
   meetingForm.elements.projectMaterials.value = "Decision criteria: useful discussion quality, feasibility, privacy, ease of setup, and clear next actions. Existing idea: a personal multi-agent meeting room.";
   apiBaseInput.value = apiBase;
+  requestAnimationFrame(() => meetingForm.scrollIntoView({ behavior: "smooth", block: "start" }));
+});
+
+resetConfigButton.addEventListener("click", () => {
+  members = structuredClone(defaultMembers);
+  disabledSkillIds = new Set();
+  disabledToolIds = new Set();
+  saveSquadConfig();
+  syncMeetingSquadConfig();
+  renderSquad();
+  renderSkills();
+  renderTools();
 });
 
 newMeetingButton.addEventListener("click", () => {
@@ -845,8 +902,8 @@ function renderSquad() {
   squadList.innerHTML = members
     .map((member) => {
       const capability = capabilities.get(member.id) || {};
-      const skillNames = (capability.skills || []).map((skill) => skill.name);
-      const toolNames = (capability.tools || []).map((tool) => tool.name);
+      const skillNames = (capability.skills || []).filter((skill) => !disabledSkillIds.has(skill.id)).map((skill) => skill.name);
+      const toolNames = (capability.tools || []).filter((tool) => !disabledToolIds.has(tool.id)).map((tool) => tool.name);
       return `
       <article class="member">
         <span class="member-dot" style="background:${member.color}"></span>
@@ -854,9 +911,24 @@ function renderSquad() {
           <strong>${escapeHtml(member.name)}</strong>
           <span>${escapeHtml(member.role)}</span>
           <details class="member-capabilities">
-            <summary>${skillNames.length} skill · ${toolNames.length} tools</summary>
+            <summary>${skillNames.length} skills - ${toolNames.length} tools</summary>
             <p><b>Skill</b> ${escapeHtml(skillNames.join(", ") || "General reasoning")}</p>
             <p><b>Tools</b> ${escapeHtml(toolNames.join(", ") || "No assigned tools")}</p>
+          </details>
+          <details class="member-config">
+            <summary>Configure</summary>
+            <label>
+              <span>Name</span>
+              <input class="member-name-input" data-member-id="${escapeHtml(member.id)}" value="${escapeHtml(member.name)}" />
+            </label>
+            <label>
+              <span>Role</span>
+              <textarea class="member-role-input" data-member-id="${escapeHtml(member.id)}">${escapeHtml(member.role)}</textarea>
+            </label>
+            <label>
+              <span>Color</span>
+              <input class="member-color-input" data-member-id="${escapeHtml(member.id)}" type="color" value="${escapeHtml(member.color)}" />
+            </label>
           </details>
         </div>
       </article>
@@ -888,7 +960,7 @@ function renderMessageHtml(message) {
 
 function formatDiscussionLabel(meta = {}) {
   if (!meta?.contributionType || meta.contributionType === "Core turn") return "";
-  const reply = meta.respondingTo ? ` · responding to ${meta.respondingTo}` : "";
+  const reply = meta.respondingTo ? ` - responding to ${meta.respondingTo}` : "";
   return `${meta.contributionType}${reply}`;
 }
 
@@ -1323,7 +1395,15 @@ function renderMarkdown(markdown) {
 function renderSkills() {
   skillCount.textContent = String(availableSkills.length);
   skillList.innerHTML = availableSkills.length
-    ? availableSkills.map((skill) => `<span class="skill-chip">${escapeHtml(skill.name)}</span>`).join("")
+    ? availableSkills.map((skill) => `
+        <label class="config-row">
+          <input type="checkbox" class="skill-toggle" data-skill-id="${escapeHtml(skill.id)}" ${disabledSkillIds.has(skill.id) ? "" : "checked"} />
+          <span>
+            <strong>${escapeHtml(skill.name)}</strong>
+            <small>${escapeHtml(getMemberName(skill.owner))}</small>
+          </span>
+        </label>
+      `).join("")
     : '<span class="muted-line">Loading...</span>';
 }
 
@@ -1331,10 +1411,13 @@ function renderTools() {
   toolCount.textContent = String(availableTools.length);
   toolRegistry.innerHTML = availableTools.length
     ? availableTools.map((tool) => `
-        <div class="tool-registry-item">
-          <strong>${escapeHtml(tool.name)}</strong>
-          <span>${tool.approval === "user" ? "Agent-run; may ask approval" : "Agent-run automatically"}</span>
-        </div>
+        <label class="config-row tool-registry-item">
+          <input type="checkbox" class="tool-toggle" data-tool-id="${escapeHtml(tool.id)}" ${disabledToolIds.has(tool.id) ? "" : "checked"} />
+          <span>
+            <strong>${escapeHtml(tool.name)}</strong>
+            <small>${tool.approval === "user" ? "May ask approval" : "Automatic"}</small>
+          </span>
+        </label>
       `).join("")
     : '<span class="muted-line">Loading...</span>';
 }
@@ -1413,7 +1496,7 @@ function renderWorkItems() {
         <article class="work-item">
           <div>
             <strong>${escapeHtml(item.title || "Untitled task")}</strong>
-            <span>${escapeHtml(item.ownerAgent || "captain")} · ${escapeHtml(item.deliverable || "action")}</span>
+            <span>${escapeHtml(item.ownerAgent || "captain")} - ${escapeHtml(item.deliverable || "action")}</span>
           </div>
           <div class="work-item-actions">
             <b>${escapeHtml(formatTaskStatus(item.status))}</b>
@@ -1453,7 +1536,7 @@ function renderWorkspace() {
     return `
       <div class="agent-workspace">
         <strong>${escapeHtml(member.name)}</strong>
-        <span>${assigned} assigned · ${background} active · ${discoveries} discoveries</span>
+        <span>${assigned} assigned - ${background} active - ${discoveries} discoveries</span>
       </div>
     `;
   }).join("");
@@ -1689,6 +1772,44 @@ workItemList.addEventListener("click", (event) => {
   else item.status = item.status === "running" ? "paused" : "running";
   renderWorkItems();
   renderWorkspace();
+});
+
+squadList.addEventListener("input", (event) => {
+  const field = event.target.closest("[data-member-id]");
+  if (!field) return;
+  const member = members.find((item) => item.id === field.dataset.memberId);
+  if (!member) return;
+  if (field.classList.contains("member-name-input")) member.name = field.value.trim() || member.name;
+  if (field.classList.contains("member-role-input")) member.role = field.value.trim();
+  if (field.classList.contains("member-color-input")) member.color = field.value;
+  saveSquadConfig();
+  syncMeetingSquadConfig();
+  renderWorkspace();
+});
+
+squadList.addEventListener("change", (event) => {
+  if (!event.target.classList.contains("member-color-input")) return;
+  renderSquad();
+});
+
+skillList.addEventListener("change", (event) => {
+  const checkbox = event.target.closest(".skill-toggle");
+  if (!checkbox) return;
+  if (checkbox.checked) disabledSkillIds.delete(checkbox.dataset.skillId);
+  else disabledSkillIds.add(checkbox.dataset.skillId);
+  saveSquadConfig();
+  syncMeetingSquadConfig();
+  renderSquad();
+});
+
+toolRegistry.addEventListener("change", (event) => {
+  const checkbox = event.target.closest(".tool-toggle");
+  if (!checkbox) return;
+  if (checkbox.checked) disabledToolIds.delete(checkbox.dataset.toolId);
+  else disabledToolIds.add(checkbox.dataset.toolId);
+  saveSquadConfig();
+  syncMeetingSquadConfig();
+  renderSquad();
 });
 
 function formatTaskStatus(status) {

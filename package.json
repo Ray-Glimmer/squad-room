@@ -2,7 +2,7 @@
   "name": "squad-room",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal AI squad room for competitions and project brainstorming.",
+  "description": "Personal AI squad room for decisions, planning, research, and project discussions.",
   "type": "module",
   "scripts": {
     "api": "node apps/api/src/server.mjs",

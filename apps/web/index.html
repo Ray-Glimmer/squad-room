@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Squad Room</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-02" />
+    <link rel="stylesheet" href="./styles.css?v=20260604-03" />
   </head>
   <body>
     <main class="app-shell">
@@ -57,7 +57,7 @@
           </div>
         </section>
 
-        <form id="meetingForm" class="setup-grid">
+        <form id="meetingForm" class="setup-grid setup-collapsed" aria-hidden="true">
           <div class="form-section-title">
             <h2 data-i18n="setup.title">Create a room</h2>
             <p data-i18n="setup.subtitle">Only the inputs needed to start the discussion live here. Capabilities and diagnostics have their own pages.</p>
@@ -102,6 +102,24 @@
             <span class="material-help">TXT, MD, CSV, JSON, HTML, PDF, DOCX, XLS/XLSX</span>
           </div>
           <div id="materialFileList" class="material-file-list"></div>
+          <div class="setup-options">
+            <label class="toggle-row option-toggle">
+              <input id="autoResearchToggle" type="checkbox" />
+              <span class="toggle-control" aria-hidden="true"></span>
+              <span>
+                <span data-i18n="settings.autoResearch">Automatic web research</span>
+                <small data-i18n="settings.autoResearchHelp">Allow agents to send search queries without asking each time.</small>
+              </span>
+            </label>
+            <label class="toggle-row option-toggle">
+              <input id="explorationModeToggle" type="checkbox" />
+              <span class="toggle-control" aria-hidden="true"></span>
+              <span>
+                <span data-i18n="settings.exploration">Exploration mode</span>
+                <small data-i18n="settings.explorationHelp">Allow deeper autonomous opportunity research with a larger bounded tool budget.</small>
+              </span>
+            </label>
+          </div>
           <div class="setup-actions">
             <button type="submit" id="openRoomButton" class="primary-button" data-i18n="setup.openRoom">Open room</button>
           </div>
@@ -241,22 +259,7 @@
               <span data-i18n="settings.apiEndpoint">API endpoint</span>
               <input id="apiBaseInput" value="http://localhost:8787" />
             </label>
-            <label class="toggle-row">
-              <input id="autoResearchToggle" type="checkbox" />
-              <span class="toggle-control" aria-hidden="true"></span>
-              <span>
-                <span data-i18n="settings.autoResearch">Automatic web research</span>
-                <small data-i18n="settings.autoResearchHelp">Allow agents to send search queries without asking each time.</small>
-              </span>
-            </label>
-            <label class="toggle-row">
-              <input id="explorationModeToggle" type="checkbox" />
-              <span class="toggle-control" aria-hidden="true"></span>
-              <span>
-                <span data-i18n="settings.exploration">Exploration mode</span>
-                <small data-i18n="settings.explorationHelp">Allow deeper autonomous opportunity research with a larger bounded tool budget.</small>
-              </span>
-            </label>
+            <button type="button" id="resetConfigButton" class="ghost-button">Reset local configuration</button>
           </article>
         </section>
       </section>

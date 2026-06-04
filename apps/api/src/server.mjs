@@ -261,7 +261,7 @@ async function runStage({ meeting, stageIndex, history }) {
   const turnCounts = {};
 
   for (const speakerId of plan.required) {
-    const member = squad.find((item) => item.id === speakerId);
+    const member = getMeetingMember(meeting, speakerId);
     const response = await askMember({ meeting, member, stage, history: [...history, ...messages] });
     messages.push(makeMessage(member, response.content, stage, { contributionType: "Core turn" }));
     addUsage(usage, response.usage, member.id);
@@ -295,7 +295,7 @@ async function streamStageResponse(res, { meeting, stageIndex, history }) {
     const backgroundToolsPromise = startBackgroundTools({ meeting, stage, res, signal });
 
     for (const speakerId of plan.required) {
-      const member = squad.find((item) => item.id === speakerId);
+      const member = getMeetingMember(meeting, speakerId);
       const response = await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal, discussionMeta: { contributionType: "Core turn" } });
       messages.push(response.message);
       addUsage(usage, response.usage, member.id);
@@ -340,7 +340,7 @@ async function respondToUser({ meeting, stageIndex, history, userMessage }) {
   const usage = createUsage();
 
   for (const speakerId of speakers) {
-    const member = squad.find((item) => item.id === speakerId);
+    const member = getMeetingMember(meeting, speakerId);
     const response = await askMember({
       meeting,
       member,
@@ -385,7 +385,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
     sendEvent(res, "message_done", { message: userEntry });
 
     for (const speakerId of selectUserResponders(userMessage)) {
-      const member = squad.find((item) => item.id === speakerId);
+      const member = getMeetingMember(meeting, speakerId);
       const response = await streamMember({
         res,
         meeting,
@@ -419,7 +419,7 @@ async function streamUserResponse(res, { meeting, stageIndex, history, userMessa
 }
 
 async function summarize({ meeting, history }) {
-  const member = squad.find((item) => item.id === "captain");
+  const member = getMeetingMember(meeting, "captain");
   const stage = "Summary";
   const prompt = [
     `Meeting topic: ${meeting.topic}`,
@@ -459,7 +459,7 @@ async function streamSummaryResponse(res, { meeting, history }) {
   startEventStream(res);
   const signal = createResponseAbortSignal(res);
   try {
-    const member = squad.find((item) => item.id === "captain");
+    const member = getMeetingMember(meeting, "captain");
     const stage = "Summary";
     const stageIndex = stages.length - 1;
     const prompt = buildSummaryPrompt(meeting);
@@ -515,7 +515,7 @@ async function runAdaptiveTurns({ meeting, stage, plan, history, messages, usage
     addUsage(usage, request.usage, "scheduler");
     if (!request.speakerId) break;
 
-    const member = squad.find((item) => item.id === request.speakerId);
+    const member = getMeetingMember(meeting, request.speakerId);
     if (!member) break;
     const discussionMeta = {
       contributionType: request.impact === "risk" ? "Risk raised" : request.impact === "evidence" ? "New evidence" : "Follow-up",
@@ -532,7 +532,7 @@ async function runAdaptiveTurns({ meeting, stage, plan, history, messages, usage
 
   const lastSpeakerId = messages.at(-1)?.speakerId;
   if (!adaptiveTurns || lastSpeakerId === "captain" || messages.length >= plan.maxVisibleTurns || (turnCounts.captain || 0) >= MAX_TURNS_PER_AGENT) return;
-  const member = squad.find((item) => item.id === "captain");
+  const member = getMeetingMember(meeting, "captain");
   const discussionMeta = { contributionType: "Captain decision", respondingTo: lastSpeakerId };
   const response = res
     ? await streamMember({ res, meeting, member, stage, history: [...history, ...messages], signal, discussionMeta })
@@ -609,10 +609,10 @@ function selectUserResponders(userMessage) {
 function buildMemberUserPrompt({ meeting, member, stage, history, userMessage = "", discussionMeta = {} }) {
   const recent = getRecentMessages(history, 8);
   const existing = summarizeExistingWork(history);
-  const memberSkills = skills.filter((item) => item.owner === member.id);
+  const memberSkills = skills.filter((item) => item.owner === member.id && isSkillEnabled(meeting, item));
   const retrievedMaterials = retrieveProjectMaterials(meeting, [stage, member.name, userMessage, existing].join("\n"));
   const availableTools = tools
-    .filter((tool) => tool.agents.includes(member.id))
+    .filter((tool) => tool.agents.includes(member.id) && isToolEnabled(meeting, tool))
     .map((tool) => `${tool.name} (${tool.approval === "none" ? "autonomous low-risk" : "requires approval unless auto research is enabled"})`)
     .join(", ");
   return [
@@ -940,8 +940,48 @@ function normalizeMeeting(input = {}) {
     projectMaterialChunks: chunkProjectMaterials(projectMaterials),
     researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000),
     autoWebResearch: input.autoWebResearch === true,
-    explorationMode: input.explorationMode === true
+    explorationMode: input.explorationMode === true,
+    squadConfig: normalizeSquadConfig(input.squadConfig)
   };
+}
+
+function normalizeSquadConfig(config = {}) {
+  const memberMap = new Map();
+  const configuredMembers = Array.isArray(config.members) ? config.members : [];
+  for (const item of configuredMembers) {
+    const id = String(item?.id || "").trim();
+    if (!id || !squad.some((member) => member.id === id)) continue;
+    memberMap.set(id, {
+      name: truncate(String(item.name || "").trim(), 40),
+      role: truncate(String(item.role || "").trim(), 180),
+      color: String(item.color || "").trim()
+    });
+  }
+  return {
+    members: memberMap,
+    disabledSkillIds: new Set(Array.isArray(config.disabledSkillIds) ? config.disabledSkillIds.map(String) : []),
+    disabledToolIds: new Set(Array.isArray(config.disabledToolIds) ? config.disabledToolIds.map(String) : [])
+  };
+}
+
+function getMeetingMember(meeting, id) {
+  const base = squad.find((item) => item.id === id);
+  if (!base) return null;
+  const custom = meeting.squadConfig?.members?.get(id);
+  return {
+    ...base,
+    name: custom?.name || base.name,
+    role: custom?.role || base.role,
+    color: custom?.color || base.color
+  };
+}
+
+function isSkillEnabled(meeting, skill) {
+  return !meeting.squadConfig?.disabledSkillIds?.has(skill.id);
+}
+
+function isToolEnabled(meeting, tool) {
+  return !meeting.squadConfig?.disabledToolIds?.has(tool.id);
 }
 
 function chunkProjectMaterials(text, size = 900, overlap = 160) {
@@ -1111,6 +1151,8 @@ function loadSkill(id, name, owner, relativePath) {
 }
 
 function getResearchCalls(meeting, stage) {
+  const researchTool = tools.find((tool) => tool.id === "web_search");
+  if (!researchTool || !isToolEnabled(meeting, researchTool)) return [];
   const queries = {
     Framing: `${meeting.topic} ${meeting.contestType} comparable examples decision criteria`,
     Feasibility: `${meeting.topic} implementation feasibility technical constraints examples`,
@@ -1270,7 +1312,12 @@ async function runAutomaticTools({ meeting, stage, brief, signal, includeResearc
     calls.push({ toolId: "update_task", agentId: "captain", payload: { brief, stage } });
   }
 
-  return Promise.all(calls.map((call) => executeTool({
+  const enabledCalls = calls.filter((call) => {
+    const tool = tools.find((item) => item.id === call.toolId);
+    return tool && isToolEnabled(meeting, tool);
+  });
+
+  return Promise.all(enabledCalls.map((call) => executeTool({
     ...call,
     source: "automatic",
     automationKey: `${stage}:${call.toolId}`
