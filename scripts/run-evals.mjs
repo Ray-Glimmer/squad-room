@@ -40,11 +40,13 @@ check("server implements artifact tools", requiredTools.every((id) => server.inc
 check("server supports skill pack directories", server.includes("manifest.json") && server.includes("SKILL.md"));
 check("server has project-material retrieval", server.includes("retrieveProjectMaterials") && server.includes("chunkProjectMaterials"));
 check(
-  "frontend renders diagnostic run trace",
+  "frontend renders dashboard run trace",
   read("apps/web/app.js").includes("renderTrace")
-    && read("apps/web/index.html").includes("Diagnostics")
+    && read("apps/web/index.html").includes("dashboardView")
     && read("apps/web/index.html").includes("Run trace")
 );
+check("frontend has settings page", read("apps/web/index.html").includes("settingsView") && read("apps/web/index.html").includes("apiBaseInput"));
+check("frontend has language switch", read("apps/web/app.js").includes("LANGUAGE_KEY") && read("apps/web/index.html").includes("languageButton"));
 check("frontend renders structured artifacts", read("apps/web/app.js").includes('result.kind === "artifact"'));
 
 const skillPackDir = join(root, "skills", "captain", "meeting-qa");

@@ -1,5 +1,172 @@
 const API_BASE_KEY = "squad-room-api-base";
+const LANGUAGE_KEY = "squad-room-language";
 const defaultApiBase = localStorage.getItem(API_BASE_KEY) || "http://localhost:8787";
+const defaultLanguage = localStorage.getItem(LANGUAGE_KEY) || (navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en");
+
+const translations = {
+  en: {
+    "nav.subtitle": "Personal AI advisor team",
+    "nav.home": "Home",
+    "nav.meeting": "Meeting",
+    "nav.dashboard": "Dashboard",
+    "nav.settings": "Settings",
+    "home.eyebrow": "Personal AI competition team",
+    "home.title": "Open a focused room for your AI advisor squad.",
+    "home.subtitle": "Start with a topic, bring in project material, and let the squad turn a messy idea into decisions, tasks, and a cleaner next move.",
+    "home.start": "Start a meeting",
+    "home.demo": "Load demo",
+    "home.previewNow": "Now",
+    "home.previewDecision": "Clarify the real contest problem before generating ideas.",
+    "home.previewNext": "Next",
+    "home.previewAction": "Run one stage, inspect the brief, then keep the room moving.",
+    "home.previewWatch": "Watch",
+    "home.previewRisk": "Separate meeting decisions from diagnostics and configuration.",
+    "setup.title": "Create a room",
+    "setup.subtitle": "Only the inputs needed to start the discussion live here. Capabilities and diagnostics have their own pages.",
+    "setup.topic": "Topic",
+    "setup.topicPlaceholder": "AI education contest idea",
+    "setup.contestType": "Contest type",
+    "setup.goal": "Goal",
+    "setup.goalPlaceholder": "Get from rough idea to pitch-ready plan",
+    "setup.constraints": "Constraints",
+    "setup.constraintsPlaceholder": "Deadline, team size, required deliverables, tools, budget...",
+    "setup.materials": "Project materials",
+    "setup.materialsPlaceholder": "Paste contest rules, judging criteria, notes, source excerpts, or existing project context...",
+    "setup.importFiles": "Import files",
+    "setup.openRoom": "Open room",
+    "room.eyebrow": "Meeting room",
+    "room.pause": "Pause",
+    "room.resume": "Resume",
+    "room.new": "New",
+    "room.interrupt": "Interrupt now",
+    "room.composerPlaceholder": "Join the discussion, ask a teammate, or add constraints...",
+    "room.send": "Send",
+    "room.run": "Run Meeting",
+    "room.next": "Next Stage",
+    "room.summary": "Summary",
+    "brief.title": "Room Brief",
+    "brief.subtitle": "Decisions, actions, and watch points",
+    "brief.keyBrief": "Key Brief",
+    "brief.tasks": "Task Center",
+    "brief.research": "Research Updates",
+    "brief.direction": "Direction",
+    "brief.actions": "Next Actions",
+    "brief.risks": "Watch Points",
+    "brief.questions": "Open Questions",
+    "brief.noBriefTitle": "No brief yet",
+    "brief.noBriefText": "Run the meeting and the squad will turn the discussion into a concise decision brief.",
+    "brief.now": "Now",
+    "brief.next": "Next",
+    "brief.watch": "Watch",
+    "brief.ask": "Ask",
+    "brief.waiting": "Waiting for the first team conclusion.",
+    "brief.noAction": "No concrete action yet.",
+    "brief.noRisk": "No major watch point yet.",
+    "brief.noQuestion": "No open question yet.",
+    "dashboard.eyebrow": "Operations",
+    "dashboard.title": "Dashboard",
+    "dashboard.subtitle": "A quieter place for workspace state, background work, tool runs, and trace details.",
+    "dashboard.sharedWorkspace": "Shared workspace",
+    "dashboard.agentWorkspaces": "Agent workspaces",
+    "dashboard.backgroundWork": "Background work",
+    "dashboard.toolRuns": "Tool runs",
+    "dashboard.usage": "Usage",
+    "dashboard.trace": "Run trace",
+    "settings.eyebrow": "Configuration",
+    "settings.title": "Squad settings",
+    "settings.subtitle": "Tune capabilities and execution settings away from the meeting table.",
+    "settings.teammates": "Teammates",
+    "settings.skills": "Skills",
+    "settings.tools": "Tools",
+    "settings.execution": "Execution",
+    "settings.apiEndpoint": "API endpoint",
+    "settings.autoResearch": "Automatic web research",
+    "settings.autoResearchHelp": "Allow agents to send search queries without asking each time.",
+    "settings.exploration": "Exploration mode",
+    "settings.explorationHelp": "Allow deeper autonomous opportunity research with a larger bounded tool budget."
+  },
+  zh: {
+    "nav.subtitle": "个人 AI 顾问团",
+    "nav.home": "首页",
+    "nav.meeting": "会议室",
+    "nav.dashboard": "看板",
+    "nav.settings": "设置",
+    "home.eyebrow": "个人 AI 比赛小队",
+    "home.title": "为你的 AI 顾问团打开一个专注会议室。",
+    "home.subtitle": "输入主题，带入项目资料，让小队把混乱想法整理成决策、任务和下一步行动。",
+    "home.start": "开始会议",
+    "home.demo": "载入示例",
+    "home.previewNow": "当前",
+    "home.previewDecision": "先澄清真正的竞赛问题，再开始发散想法。",
+    "home.previewNext": "下一步",
+    "home.previewAction": "运行一个阶段，查看简报，再继续推进会议。",
+    "home.previewWatch": "注意",
+    "home.previewRisk": "把会议决策、诊断信息和配置分开放置。",
+    "setup.title": "创建会议室",
+    "setup.subtitle": "首页只保留启动讨论需要的信息。能力配置和运行诊断放到独立页面。",
+    "setup.topic": "主题",
+    "setup.topicPlaceholder": "AI 教育比赛想法",
+    "setup.contestType": "比赛类型",
+    "setup.goal": "目标",
+    "setup.goalPlaceholder": "从粗略想法推进到可路演方案",
+    "setup.constraints": "约束",
+    "setup.constraintsPlaceholder": "截止时间、团队规模、交付物、工具、预算...",
+    "setup.materials": "项目资料",
+    "setup.materialsPlaceholder": "粘贴比赛规则、评分标准、笔记、资料摘录或已有项目上下文...",
+    "setup.importFiles": "导入文件",
+    "setup.openRoom": "打开会议室",
+    "room.eyebrow": "会议室",
+    "room.pause": "暂停",
+    "room.resume": "继续",
+    "room.new": "新会议",
+    "room.interrupt": "立即介入",
+    "room.composerPlaceholder": "参与讨论、询问队友，或补充约束...",
+    "room.send": "发送",
+    "room.run": "运行会议",
+    "room.next": "下一阶段",
+    "room.summary": "总结",
+    "brief.title": "会议简报",
+    "brief.subtitle": "决策、行动和风险提醒",
+    "brief.keyBrief": "关键简报",
+    "brief.tasks": "任务中心",
+    "brief.research": "研究更新",
+    "brief.direction": "当前方向",
+    "brief.actions": "下一步",
+    "brief.risks": "注意事项",
+    "brief.questions": "待确认问题",
+    "brief.noBriefTitle": "还没有简报",
+    "brief.noBriefText": "运行会议后，小队会把讨论整理成简洁的决策简报。",
+    "brief.now": "当前",
+    "brief.next": "下一步",
+    "brief.watch": "注意",
+    "brief.ask": "提问",
+    "brief.waiting": "等待小队形成第一个结论。",
+    "brief.noAction": "还没有明确行动。",
+    "brief.noRisk": "还没有主要风险提醒。",
+    "brief.noQuestion": "还没有待确认问题。",
+    "dashboard.eyebrow": "运行状态",
+    "dashboard.title": "看板",
+    "dashboard.subtitle": "工作区状态、后台任务、工具运行和追踪日志放在这里查看。",
+    "dashboard.sharedWorkspace": "共享工作区",
+    "dashboard.agentWorkspaces": "Agent 工作区",
+    "dashboard.backgroundWork": "后台任务",
+    "dashboard.toolRuns": "工具运行",
+    "dashboard.usage": "用量",
+    "dashboard.trace": "运行轨迹",
+    "settings.eyebrow": "配置",
+    "settings.title": "小队设置",
+    "settings.subtitle": "把能力配置和执行设置从会议桌面移到这里。",
+    "settings.teammates": "队友",
+    "settings.skills": "技能",
+    "settings.tools": "工具",
+    "settings.execution": "执行设置",
+    "settings.apiEndpoint": "API 地址",
+    "settings.autoResearch": "自动联网检索",
+    "settings.autoResearchHelp": "开启后，agent 可以按需发送搜索请求，不必每次确认。",
+    "settings.exploration": "探索模式",
+    "settings.explorationHelp": "允许 agent 使用更大的受控工具预算进行深入探索。"
+  }
+};
 
 const members = [
   ["captain", "Captain", "Controls the room and summarizes decisions.", "#2563eb"],
@@ -46,11 +213,20 @@ let squadCapabilities = [];
 let inboxItems = [];
 let materialFiles = [];
 let traceEvents = [];
+let currentView = "homeView";
+let language = defaultLanguage;
 
-const setupView = document.querySelector("#setupView");
+const pageViews = [...document.querySelectorAll(".page-view")];
+const navLinks = [...document.querySelectorAll("[data-view-target]")];
+const homeView = document.querySelector("#homeView");
 const roomView = document.querySelector("#roomView");
+const dashboardView = document.querySelector("#dashboardView");
+const settingsView = document.querySelector("#settingsView");
 const meetingForm = document.querySelector("#meetingForm");
 const loadDemoButton = document.querySelector("#loadDemoButton");
+const languageButton = document.querySelector("#languageButton");
+const apiBaseInput = document.querySelector("#apiBaseInput");
+const openRoomButton = document.querySelector("#openRoomButton");
 const newMeetingButton = document.querySelector("#newMeetingButton");
 const runMeetingButton = document.querySelector("#runMeetingButton");
 const continueButton = document.querySelector("#continueButton");
@@ -94,7 +270,9 @@ const usageLine = document.querySelector("#usageLine");
 const autoResearchToggle = document.querySelector("#autoResearchToggle");
 const explorationModeToggle = document.querySelector("#explorationModeToggle");
 
-meetingForm.elements.apiBase.value = apiBase;
+apiBaseInput.value = apiBase;
+applyLanguage();
+showView("homeView");
 renderSquad();
 renderSkills();
 renderTools();
@@ -110,10 +288,60 @@ renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
 
+function t(key) {
+  return translations[language]?.[key] || translations.en[key] || key;
+}
+
+function showView(viewId) {
+  currentView = viewId;
+  pageViews.forEach((view) => view.classList.toggle("hidden", view.id !== viewId));
+  navLinks.forEach((button) => {
+    const active = button.dataset.viewTarget === viewId && !button.hasAttribute("data-focus-topic");
+    button.classList.toggle("active", active);
+    if (button.classList.contains("nav-link")) button.setAttribute("aria-current", active ? "page" : "false");
+  });
+}
+
+function applyLanguage() {
+  document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    node.textContent = t(node.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+    node.setAttribute("placeholder", t(node.dataset.i18nPlaceholder));
+  });
+  languageButton.textContent = language === "zh" ? "EN" : "中文";
+  renderPauseState();
+}
+
+navLinks.forEach((button) => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.viewTarget;
+    if (!target) return;
+    showView(target);
+    if (button.hasAttribute("data-focus-topic")) {
+      requestAnimationFrame(() => meetingForm.elements.topic?.focus());
+    }
+  });
+});
+
+languageButton.addEventListener("click", () => {
+  language = language === "en" ? "zh" : "en";
+  localStorage.setItem(LANGUAGE_KEY, language);
+  applyLanguage();
+  renderOutputs(currentBrief);
+});
+
+apiBaseInput.addEventListener("change", () => {
+  apiBase = String(apiBaseInput.value || defaultApiBase).replace(/\/$/, "");
+  localStorage.setItem(API_BASE_KEY, apiBase);
+  refreshConfig();
+});
+
 meetingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(meetingForm);
-  apiBase = String(form.get("apiBase") || defaultApiBase).replace(/\/$/, "");
+  apiBase = String(apiBaseInput.value || defaultApiBase).replace(/\/$/, "");
   localStorage.setItem(API_BASE_KEY, apiBase);
   meeting = {
     topic: form.get("topic"),
@@ -122,8 +350,8 @@ meetingForm.addEventListener("submit", async (event) => {
     constraints: form.get("constraints"),
     projectMaterials: form.get("projectMaterials"),
     researchContext: "",
-    autoWebResearch: form.get("autoWebResearch") === "on",
-    explorationMode: form.get("explorationMode") === "on"
+    autoWebResearch: autoResearchToggle.checked,
+    explorationMode: explorationModeToggle.checked
   };
   await startMeeting();
 });
@@ -134,7 +362,7 @@ loadDemoButton.addEventListener("click", () => {
   meetingForm.elements.goal.value = "Turn a rough product idea into a pitch-ready MVP plan";
   meetingForm.elements.constraints.value = "One week timeline, solo builder, GitHub Pages frontend, local API backend, no leaked API keys.";
   meetingForm.elements.projectMaterials.value = "Judging criteria: working demo, feasibility, user value, and pitch clarity. Existing idea: a personal AI squad room.";
-  meetingForm.elements.apiBase.value = apiBase;
+  apiBaseInput.value = apiBase;
 });
 
 newMeetingButton.addEventListener("click", () => {
@@ -168,8 +396,7 @@ newMeetingButton.addEventListener("click", () => {
   renderUsageBreakdown();
   renderTrace();
   renderInterruptionQueue();
-  setupView.classList.remove("hidden");
-  roomView.classList.add("hidden");
+  showView("homeView");
 });
 
 interruptNowButton.addEventListener("click", async () => {
@@ -187,7 +414,6 @@ pauseButton.addEventListener("click", async () => {
 autoResearchToggle.addEventListener("change", () => {
   if (!meeting) return;
   meeting.autoWebResearch = autoResearchToggle.checked;
-  meetingForm.elements.autoWebResearch.checked = autoResearchToggle.checked;
   addSystemMessage(
     autoResearchToggle.checked
       ? "Automatic web research is enabled. Agents may send visible search queries without per-search approval."
@@ -199,7 +425,6 @@ autoResearchToggle.addEventListener("change", () => {
 explorationModeToggle.addEventListener("change", () => {
   if (!meeting) return;
   meeting.explorationMode = explorationModeToggle.checked;
-  meetingForm.elements.explorationMode.checked = explorationModeToggle.checked;
   addSystemMessage(
     explorationModeToggle.checked
       ? "Exploration mode is enabled. Opportunity research may use up to four background searches per stage."
@@ -246,8 +471,7 @@ messageForm.addEventListener("submit", async (event) => {
 
 async function startMeeting() {
   streamEpoch += 1;
-  setupView.classList.add("hidden");
-  roomView.classList.remove("hidden");
+  showView("roomView");
   roomTitle.textContent = meeting.topic || "Squad Room";
   history = [];
   stageIndex = 0;
@@ -280,7 +504,7 @@ async function startMeeting() {
   renderTrace();
   renderInterruptionQueue();
 
-  await withBusy(meetingForm.querySelector("button"), "Opening", async () => {
+  await withBusy(openRoomButton, "Opening", async () => {
     await postStream("/api/meeting/start/stream", meeting);
   });
   await drainUserQueue();
@@ -554,7 +778,7 @@ function pauseMeeting({ announce = true } = {}) {
 }
 
 function renderPauseState() {
-  pauseButton.textContent = isPaused ? "Resume" : "Pause";
+  pauseButton.textContent = isPaused ? t("room.resume") : t("room.pause");
   pauseButton.classList.toggle("active", isPaused);
   runMeetingButton.disabled = isPaused;
   continueButton.disabled = isPaused;
@@ -704,18 +928,18 @@ function renderOutputs(data) {
         .join("")
     : `
       <div class="brief-empty">
-        <strong>No brief yet</strong>
-        <span>Run the meeting and the squad will turn the discussion into a concise decision brief.</span>
+        <strong>${escapeHtml(t("brief.noBriefTitle"))}</strong>
+        <span>${escapeHtml(t("brief.noBriefText"))}</span>
       </div>
     `;
 }
 
 function getBriefSections(data = {}) {
   return [
-    { key: "proposal", label: "Direction", empty: "No direction yet.", items: normalizeBriefItems(data.proposal) },
-    { key: "actions", label: "Next Actions", empty: "No actions yet.", items: normalizeBriefItems(data.actions) },
-    { key: "risks", label: "Watch Points", empty: "No risks raised yet.", items: normalizeBriefItems(data.risks) },
-    { key: "questions", label: "Open Questions", empty: "No open questions yet.", items: normalizeBriefItems(data.questions) }
+    { key: "proposal", label: t("brief.direction"), items: normalizeBriefItems(data.proposal) },
+    { key: "actions", label: t("brief.actions"), items: normalizeBriefItems(data.actions) },
+    { key: "risks", label: t("brief.risks"), items: normalizeBriefItems(data.risks) },
+    { key: "questions", label: t("brief.questions"), items: normalizeBriefItems(data.questions) }
   ];
 }
 
@@ -732,10 +956,10 @@ function renderDecisionSnapshot(sections) {
   const risk = sections.find((section) => section.key === "risks")?.items[0] || "";
   const question = sections.find((section) => section.key === "questions")?.items[0] || "";
   const cards = [
-    { label: "Now", value: direction || "Waiting for the first team conclusion." },
-    { label: "Next", value: action || "No concrete action yet." },
-    { label: "Watch", value: risk || "No major watch point yet." },
-    { label: "Ask", value: question || "No open question yet." }
+    { label: t("brief.now"), value: direction || t("brief.waiting") },
+    { label: t("brief.next"), value: action || t("brief.noAction") },
+    { label: t("brief.watch"), value: risk || t("brief.noRisk") },
+    { label: t("brief.ask"), value: question || t("brief.noQuestion") }
   ];
   decisionSnapshot.innerHTML = cards
     .map((card) => `
