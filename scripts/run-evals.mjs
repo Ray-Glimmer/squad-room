@@ -40,6 +40,14 @@ check("server implements artifact tools", requiredTools.every((id) => server.inc
 check("server supports skill pack directories", server.includes("manifest.json") && server.includes("SKILL.md"));
 check("server has project-material retrieval", server.includes("retrieveProjectMaterials") && server.includes("chunkProjectMaterials"));
 check(
+  "server has bounded cache layer",
+  server.includes("createLruCache")
+    && server.includes("getCacheStats")
+    && server.includes("caches.materialRetrieval")
+    && server.includes("caches.structuredBrief")
+    && server.includes("caches.toolResult")
+);
+check(
   "frontend renders dashboard run trace",
   read("apps/web/app.js").includes("renderTrace")
     && read("apps/web/index.html").includes("dashboardView")

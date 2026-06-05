@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Squad Room</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-07" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-01" />
   </head>
   <body>
     <main class="app-shell">
@@ -39,11 +39,6 @@
             <div class="home-actions">
               <button type="button" class="primary-button" data-view-target="homeView" data-focus-topic data-i18n="home.start">Start a meeting</button>
               <button type="button" id="loadDemoButton" class="ghost-button" data-i18n="home.demo">Load demo</button>
-            </div>
-            <div class="hero-proof">
-              <span data-i18n="home.proofTeam">6 teammates</span>
-              <span data-i18n="home.proofOutputs">Briefs, tasks, research</span>
-              <span data-i18n="home.proofApi">Local API ready</span>
             </div>
           </div>
           <div class="home-preview" aria-label="Squad Room preview">
@@ -103,7 +98,7 @@
           </label>
           <label>
             <span data-i18n="setup.goal">Goal</span>
-            <input name="goal" placeholder="Get from rough idea to decision-ready plan" data-i18n-placeholder="setup.goalPlaceholder" />
+            <textarea name="goal" placeholder="Get from rough idea to decision-ready plan" data-i18n-placeholder="setup.goalPlaceholder"></textarea>
           </label>
           <label>
             <span data-i18n="setup.constraints">Constraints</span>
@@ -290,6 +285,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="./app.js?v=20260604-07" type="module"></script>
+    <script src="./app.js?v=20260605-01" type="module"></script>
   </body>
 </html>

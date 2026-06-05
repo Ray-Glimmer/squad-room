@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const apiRoot = join(__dirname, "..");
@@ -15,6 +15,14 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const USE_PROVIDER = Boolean(OPENAI_API_KEY) && process.env.SQUAD_ROOM_MOCK !== "true";
+
+const caches = {
+  materialChunks: createLruCache({ maxEntries: 100, ttlMs: 60 * 60 * 1000 }),
+  materialRetrieval: createLruCache({ maxEntries: 500, ttlMs: 20 * 60 * 1000 }),
+  structuredBrief: createLruCache({ maxEntries: 160, ttlMs: 8 * 60 * 1000 }),
+  toolResult: createLruCache({ maxEntries: 320, ttlMs: 30 * 60 * 1000 }),
+  webSearch: createLruCache({ maxEntries: 120, ttlMs: 15 * 60 * 1000 })
+};
 
 const skills = [
   loadSkill("project-lead", "Project Lead", "captain", "skills/captain/project-lead.md"),
@@ -143,7 +151,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
     if (req.method === "GET" && url.pathname === "/api/health") {
-      sendJson(res, 200, { ok: true, mode: USE_PROVIDER ? "provider" : "mock" });
+      sendJson(res, 200, { ok: true, mode: USE_PROVIDER ? "provider" : "mock", cache: getCacheStats() });
       return;
     }
 
@@ -788,6 +796,15 @@ async function buildStructuredBrief({ meeting, stage, history, signal }) {
     };
   }
 
+  const briefCacheKey = getStructuredBriefCacheKey({ meeting, stage, history });
+  const cachedOutputs = caches.structuredBrief.get(briefCacheKey);
+  if (cachedOutputs) {
+    return {
+      outputs: cachedOutputs,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    };
+  }
+
   const response = await callProvider({
     system: [
       "You are the meeting recorder for Squad Room.",
@@ -816,10 +833,21 @@ async function buildStructuredBrief({ meeting, stage, history, signal }) {
     signal
   });
 
-  return {
-    outputs: parseStructuredBrief(response.content, history),
-    usage: response.usage
-  };
+  const outputs = parseStructuredBrief(response.content, history);
+  caches.structuredBrief.set(briefCacheKey, outputs);
+  return { outputs, usage: response.usage };
+}
+
+function getStructuredBriefCacheKey({ meeting, stage, history }) {
+  return `brief:${hashText([
+    meeting.topic,
+    meeting.contestType,
+    meeting.goal,
+    meeting.constraints,
+    meeting.projectMaterialsHash,
+    stage,
+    historyToText(history).slice(-14000)
+  ].join("\n"))}`;
 }
 
 function parseStructuredBrief(content, history) {
@@ -934,18 +962,30 @@ function buildSystem(member, stage) {
 
 function normalizeMeeting(input = {}) {
   const projectMaterials = truncate(String(input.projectMaterials || "No project materials provided.").trim(), 12000);
+  const projectMaterialsHash = hashText(projectMaterials);
   return {
     topic: String(input.topic || "Untitled project").trim(),
     contestType: String(input.contestType || "General").trim(),
     goal: String(input.goal || "Create a clear, actionable recommendation.").trim(),
     constraints: String(input.constraints || "No constraints provided.").trim(),
     projectMaterials,
-    projectMaterialChunks: chunkProjectMaterials(projectMaterials),
+    projectMaterialsHash,
+    projectMaterialChunks: getCachedProjectMaterialChunks(projectMaterials, projectMaterialsHash),
     researchContext: truncate(String(input.researchContext || "No approved web research yet.").trim(), 6000),
     autoWebResearch: input.autoWebResearch === true,
     explorationMode: input.explorationMode === true,
     squadConfig: normalizeSquadConfig(input.squadConfig)
   };
+}
+
+function getCachedProjectMaterialChunks(projectMaterials, projectMaterialsHash) {
+  if (!projectMaterials || projectMaterials === "No project materials provided.") return [];
+  const cacheKey = `chunks:${projectMaterialsHash}`;
+  const cached = caches.materialChunks.get(cacheKey);
+  if (cached) return cached;
+  const chunks = chunkProjectMaterials(projectMaterials);
+  caches.materialChunks.set(cacheKey, chunks);
+  return chunks;
 }
 
 function normalizeSquadConfig(config = {}) {
@@ -1006,6 +1046,14 @@ function retrieveProjectMaterials(meeting, query, limit = 4) {
   const chunks = Array.isArray(meeting.projectMaterialChunks) ? meeting.projectMaterialChunks : [];
   if (!chunks.length) return meeting.projectMaterials || "No project materials provided.";
   const queryTerms = tokenizeForRetrieval(query);
+  const cacheKey = [
+    "retrieval",
+    meeting.projectMaterialsHash || hashText(meeting.projectMaterials || ""),
+    limit,
+    queryTerms.join("|")
+  ].join(":");
+  const cached = caches.materialRetrieval.get(cacheKey);
+  if (cached) return cached;
   const ranked = chunks
     .map((chunk) => ({
       ...chunk,
@@ -1014,9 +1062,11 @@ function retrieveProjectMaterials(meeting, query, limit = 4) {
     .sort((left, right) => right.score - left.score)
     .slice(0, limit);
   const selected = ranked.some((chunk) => chunk.score > 0) ? ranked : chunks.slice(0, Math.min(limit, chunks.length));
-  return selected
+  const result = selected
     .map((chunk) => `[${chunk.id}] ${chunk.content}`)
     .join("\n\n");
+  caches.materialRetrieval.set(cacheKey, result);
+  return result;
 }
 
 function tokenizeForRetrieval(text) {
@@ -1347,19 +1397,11 @@ async function executeTool(body = {}, { signal } = {}) {
   };
 
   if (toolId === "read_project_file") {
-    return {
-      ...base,
-      status: "completed",
-      result: truncate(String(payload.projectMaterials || "No project materials provided.").trim(), 4000)
-    };
+    return completeToolWithCachedResult(base, payload, () => truncate(String(payload.projectMaterials || "No project materials provided.").trim(), 4000));
   }
 
   if (toolId === "write_artifact") {
-    return {
-      ...base,
-      status: "completed",
-      result: briefToMarkdown(payload.brief || {})
-    };
+    return completeToolWithCachedResult(base, payload, () => briefToMarkdown(payload.brief || {}));
   }
 
   if (toolId === "update_task") {
@@ -1379,57 +1421,45 @@ async function executeTool(body = {}, { signal } = {}) {
   }
 
   if (toolId === "create_research_plan") {
-    const markdown = createResearchPlan(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("research-plan", "Research Plan", payload.stage || "Framing", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createResearchPlan(payload);
+      return buildToolArtifact("research-plan", "Research Plan", payload.stage || "Framing", markdown);
+    });
   }
 
   if (toolId === "create_option_board") {
-    const markdown = createOptionBoard(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("option-board", "Option Board", payload.stage || "Brainstorming", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createOptionBoard(payload);
+      return buildToolArtifact("option-board", "Option Board", payload.stage || "Brainstorming", markdown);
+    });
   }
 
   if (toolId === "create_feasibility_checklist") {
-    const markdown = createFeasibilityChecklist(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("feasibility-checklist", "Feasibility Checklist", payload.stage || "Feasibility", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createFeasibilityChecklist(payload);
+      return buildToolArtifact("feasibility-checklist", "Feasibility Checklist", payload.stage || "Feasibility", markdown);
+    });
   }
 
   if (toolId === "create_risk_register") {
-    const markdown = createRiskRegister(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("risk-register", "Risk Register", payload.stage || "Challenge", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createRiskRegister(payload);
+      return buildToolArtifact("risk-register", "Risk Register", payload.stage || "Challenge", markdown);
+    });
   }
 
   if (toolId === "create_decision_matrix") {
-    const markdown = createDecisionMatrix(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("decision-matrix", "Decision Matrix", payload.stage || "Convergence", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createDecisionMatrix(payload);
+      return buildToolArtifact("decision-matrix", "Decision Matrix", payload.stage || "Convergence", markdown);
+    });
   }
 
   if (toolId === "create_communication_outline") {
-    const markdown = createCommunicationOutline(payload);
-    return {
-      ...base,
-      status: "completed",
-      result: buildToolArtifact("communication-outline", "Communication Outline", payload.stage || "Communication", markdown)
-    };
+    return completeToolWithCachedResult(base, payload, () => {
+      const markdown = createCommunicationOutline(payload);
+      return buildToolArtifact("communication-outline", "Communication Outline", payload.stage || "Communication", markdown);
+    });
   }
 
   if (toolId === "web_search") {
@@ -1462,6 +1492,27 @@ async function executeTool(body = {}, { signal } = {}) {
   }
 
   return { ok: false, error: "Tool is not implemented." };
+}
+
+function completeToolWithCachedResult(base, payload, makeResult) {
+  const cacheKey = `tool:${base.toolId}:${hashText(stableStringify(payload))}`;
+  const cached = caches.toolResult.get(cacheKey);
+  if (cached) {
+    return {
+      ...base,
+      status: "completed",
+      cache: "hit",
+      result: cached
+    };
+  }
+  const result = makeResult();
+  caches.toolResult.set(cacheKey, result);
+  return {
+    ...base,
+    status: "completed",
+    cache: "miss",
+    result
+  };
 }
 
 function createResearchPlan({ meeting = {}, brief = {}, stage = "Framing" } = {}) {
@@ -1713,6 +1764,9 @@ function splitMarkdownTableRow(line) {
 }
 
 async function searchWeb(query, signal) {
+  const cacheKey = `web:${hashText(String(query || "").trim().toLowerCase())}`;
+  const cached = caches.webSearch.get(cacheKey);
+  if (cached) return cached;
   const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
     headers: {
       Accept: "text/html",
@@ -1735,6 +1789,7 @@ async function searchWeb(query, signal) {
     if (results.length >= 5) break;
   }
   if (!results.length) throw new Error("Search provider returned no readable results.");
+  caches.webSearch.set(cacheKey, results);
   return results;
 }
 
@@ -1848,6 +1903,87 @@ function inferDeliverable(title) {
   if (["prototype", "demo", "build", "原型", "演示", "开发"].some((keyword) => text.includes(keyword))) return "prototype";
   if (["test", "validate", "验证", "测试"].some((keyword) => text.includes(keyword))) return "validation";
   return "action";
+}
+
+function createLruCache({ maxEntries = 100, ttlMs = 60000 } = {}) {
+  const store = new Map();
+  const stats = { hits: 0, misses: 0, sets: 0, evictions: 0 };
+  return {
+    get(key) {
+      const entry = store.get(key);
+      if (!entry) {
+        stats.misses += 1;
+        return null;
+      }
+      if (Date.now() > entry.expiresAt) {
+        store.delete(key);
+        stats.misses += 1;
+        stats.evictions += 1;
+        return null;
+      }
+      store.delete(key);
+      store.set(key, entry);
+      stats.hits += 1;
+      return cloneCacheValue(entry.value);
+    },
+    set(key, value) {
+      store.set(key, {
+        value: cloneCacheValue(value),
+        expiresAt: Date.now() + ttlMs
+      });
+      stats.sets += 1;
+      while (store.size > maxEntries) {
+        const oldestKey = store.keys().next().value;
+        store.delete(oldestKey);
+        stats.evictions += 1;
+      }
+    },
+    stats() {
+      const total = stats.hits + stats.misses;
+      return {
+        size: store.size,
+        maxEntries,
+        ttlMs,
+        hits: stats.hits,
+        misses: stats.misses,
+        sets: stats.sets,
+        evictions: stats.evictions,
+        hitRate: total ? Number((stats.hits / total).toFixed(3)) : 0
+      };
+    }
+  };
+}
+
+function cloneCacheValue(value) {
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+}
+
+function getCacheStats() {
+  return Object.fromEntries(Object.entries(caches).map(([name, cache]) => [name, cache.stats()]));
+}
+
+function hashText(value) {
+  return createHash("sha256").update(String(value || "")).digest("hex").slice(0, 24);
+}
+
+function stableStringify(value) {
+  return JSON.stringify(sortForStableStringify(value));
+}
+
+function sortForStableStringify(value) {
+  if (value instanceof Map) return sortForStableStringify(Object.fromEntries(value));
+  if (value instanceof Set) return [...value].sort();
+  if (Array.isArray(value)) return value.map(sortForStableStringify);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortForStableStringify(value[key])])
+  );
 }
 
 function loadEnv(path) {
