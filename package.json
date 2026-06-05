@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "api": "node apps/api/src/server.mjs",
-    "check": "node --check apps/api/src/server.mjs && node --check apps/web/app.js",
+    "web": "node scripts/serve-web.mjs",
+    "check": "node --check apps/api/src/server.mjs && node --check apps/web/app.js && node --check scripts/serve-web.mjs",
     "eval": "node scripts/run-evals.mjs",
     "verify:screenshot": "powershell -ExecutionPolicy Bypass -File scripts/verify-page-screenshot.ps1"
   },

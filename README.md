@@ -160,6 +160,7 @@ Artifact tools return Markdown for reading and structured JSON for future filter
 ## Developer Commands
 
 ```bash
+npm run web
 npm run api
 npm run check
 npm run eval
@@ -169,13 +170,14 @@ npm run verify:screenshot
 On Windows PowerShell:
 
 ```powershell
+npm.cmd run web
 npm.cmd run api
 npm.cmd run check
 npm.cmd run eval
 npm.cmd run verify:screenshot
 ```
 
-`eval` runs lightweight harness checks for tool registration, skill packs, structured artifacts, retrieval, and optional live API smoke tests. `verify:screenshot` uses local Edge or Chrome headless mode to capture a frontend screenshot.
+`web` serves the static frontend over local HTTP so browser modules and route hashes work during verification. `eval` runs lightweight harness checks for tool registration, skill packs, structured artifacts, retrieval, and optional live API smoke tests. `verify:screenshot` uses local Edge or Chrome headless mode to capture a frontend screenshot.
 
 ## GitHub Pages
 

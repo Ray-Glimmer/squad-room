@@ -183,6 +183,14 @@ const defaultMembers = [
   ["designer", "Designer", "Shapes experience, story, and presentation.", "#db2777"],
   ["critic", "Critic", "Finds weak spots and asks hard stakeholder questions.", "#7c3aed"]
 ].map(([id, name, role, color]) => ({ id, name, role, color }));
+const defaultRoleTranslations = {
+  captain: "\u63a7\u5236\u4f1a\u8bae\u8282\u594f\uff0c\u6574\u7406\u51b3\u7b56\u548c\u5171\u8bc6\u3002",
+  ideator: "\u63d0\u51fa\u65b0\u89d2\u5ea6\u3001\u5dee\u5f02\u5316\u601d\u8def\u548c\u53ef\u9009\u65b9\u6848\u3002",
+  engineer: "\u68c0\u67e5\u6280\u672f\u53ef\u884c\u6027\u548c\u5b9e\u73b0\u8def\u5f84\u3002",
+  strategist: "\u5173\u6ce8\u7528\u6237\u3001\u5e02\u573a\u548c\u4ef7\u503c\u5224\u65ad\u3002",
+  designer: "\u6253\u78e8\u4f53\u9a8c\u3001\u6545\u4e8b\u7ebf\u548c\u8868\u8fbe\u65b9\u5f0f\u3002",
+  critic: "\u627e\u51fa\u8584\u5f31\u70b9\uff0c\u63d0\u51fa\u5173\u952e\u8d28\u7591\u3002"
+};
 const savedSquadConfig = loadSquadConfig();
 let members = savedSquadConfig.members || structuredClone(defaultMembers);
 let disabledSkillIds = new Set(savedSquadConfig.disabledSkillIds || []);
@@ -299,9 +307,14 @@ updateDiagnosticCount();
 renderInterruptionQueue();
 renderMaterialFiles();
 refreshConfig();
+restoreInitialRoute();
 
 function t(key) {
   return translations[language]?.[key] || translations.en[key] || key;
+}
+
+function uiText(en, zh) {
+  return language === "zh" ? zh : en;
 }
 
 function showView(viewId) {
@@ -312,6 +325,9 @@ function showView(viewId) {
     button.classList.toggle("active", active);
     if (button.classList.contains("nav-link")) button.setAttribute("aria-current", active ? "page" : "false");
   });
+  if (viewId !== "homeView" && window.location.hash === "#create") {
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
 }
 
 function applyLanguage() {
@@ -326,21 +342,48 @@ function applyLanguage() {
   renderPauseState();
 }
 
-function openCreateRoomPanel({ focus = false } = {}) {
+function openCreateRoomPanel({ focus = false, scrollBehavior = "smooth", scrollDelay = 360 } = {}) {
   if (currentView !== "homeView") showView("homeView");
+  if (window.location.hash !== "#create") {
+    window.history.replaceState(null, "", "#create");
+  }
+  homeView.classList.add("is-creating");
   meetingForm.classList.remove("setup-collapsed");
   meetingForm.setAttribute("aria-hidden", "false");
   window.setTimeout(() => {
-    scrollToCreateRoom();
+    scrollToCreateRoom(scrollBehavior);
     if (focus) meetingForm.elements.topic?.focus({ preventScroll: true });
-  }, 80);
+  }, scrollDelay);
 }
 
-function scrollToCreateRoom() {
+function closeCreateRoomPanel() {
+  homeView.classList.remove("is-creating");
+  meetingForm.classList.add("setup-collapsed");
+  meetingForm.setAttribute("aria-hidden", "true");
+  if (window.location.hash === "#create") {
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function restoreInitialRoute() {
+  if (window.location.hash === "#create") {
+    window.setTimeout(() => openCreateRoomPanel({ scrollBehavior: "auto", scrollDelay: 520 }), 80);
+    return;
+  }
+  const routedView = {
+    "#room": "roomView",
+    "#dashboard": "dashboardView",
+    "#settings": "settingsView"
+  }[window.location.hash];
+  if (routedView) showView(routedView);
+}
+
+function scrollToCreateRoom(behavior = "smooth") {
   const nav = document.querySelector(".app-nav");
   const navHeight = nav?.getBoundingClientRect().height || 72;
   const top = meetingForm.getBoundingClientRect().top + window.scrollY - navHeight - 18;
-  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  window.scrollTo({ top: Math.max(0, top), behavior });
 }
 
 function loadSquadConfig() {
@@ -378,6 +421,8 @@ navLinks.forEach((button) => {
     showView(target);
     if (button.hasAttribute("data-focus-topic")) {
       openCreateRoomPanel({ focus: true });
+    } else if (target === "homeView") {
+      closeCreateRoomPanel();
     }
   });
 });
@@ -922,24 +967,24 @@ function renderSquad() {
         <span class="member-dot" style="background:${member.color}"></span>
         <div>
           <strong>${escapeHtml(member.name)}</strong>
-          <span>${escapeHtml(member.role)}</span>
+          <span>${escapeHtml(formatMemberRole(member))}</span>
           <details class="member-capabilities">
-            <summary>${skillNames.length} skills - ${toolNames.length} tools</summary>
-            <p><b>Skill</b> ${escapeHtml(skillNames.join(", ") || "General reasoning")}</p>
-            <p><b>Tools</b> ${escapeHtml(toolNames.join(", ") || "No assigned tools")}</p>
+            <summary>${skillNames.length} ${escapeHtml(uiText("skills", "\u6280\u80fd"))} - ${toolNames.length} ${escapeHtml(uiText("tools", "\u5de5\u5177"))}</summary>
+            <p><b>${escapeHtml(uiText("Skills", "\u6280\u80fd"))}</b> ${escapeHtml(skillNames.join(", ") || uiText("General reasoning", "\u901a\u7528\u63a8\u7406"))}</p>
+            <p><b>${escapeHtml(uiText("Tools", "\u5de5\u5177"))}</b> ${escapeHtml(toolNames.join(", ") || uiText("No assigned tools", "\u672a\u5206\u914d\u5de5\u5177"))}</p>
           </details>
           <details class="member-config">
-            <summary>Configure</summary>
+            <summary>${escapeHtml(uiText("Configure", "\u914d\u7f6e"))}</summary>
             <label>
-              <span>Name</span>
+              <span>${escapeHtml(uiText("Name", "\u540d\u79f0"))}</span>
               <input class="member-name-input" data-member-id="${escapeHtml(member.id)}" value="${escapeHtml(member.name)}" />
             </label>
             <label>
-              <span>Role</span>
+              <span>${escapeHtml(uiText("Role", "\u89d2\u8272"))}</span>
               <textarea class="member-role-input" data-member-id="${escapeHtml(member.id)}">${escapeHtml(member.role)}</textarea>
             </label>
             <label>
-              <span>Color</span>
+              <span>${escapeHtml(uiText("Color", "\u989c\u8272"))}</span>
               <input class="member-color-input" data-member-id="${escapeHtml(member.id)}" type="color" value="${escapeHtml(member.color)}" />
             </label>
           </details>
@@ -1417,7 +1462,7 @@ function renderSkills() {
           </span>
         </label>
       `).join("")
-    : '<span class="muted-line">Loading...</span>';
+    : `<span class="muted-line">${escapeHtml(uiText("Loading...", "\u52a0\u8f7d\u4e2d..."))}</span>`;
 }
 
 function renderTools() {
@@ -1428,11 +1473,11 @@ function renderTools() {
           <input type="checkbox" class="tool-toggle" data-tool-id="${escapeHtml(tool.id)}" ${disabledToolIds.has(tool.id) ? "" : "checked"} />
           <span>
             <strong>${escapeHtml(tool.name)}</strong>
-            <small>${tool.approval === "user" ? "May ask approval" : "Automatic"}</small>
+            <small>${escapeHtml(tool.approval === "user" ? uiText("May ask approval", "\u53ef\u80fd\u9700\u8981\u786e\u8ba4") : uiText("Automatic", "\u81ea\u52a8"))}</small>
           </span>
         </label>
       `).join("")
-    : '<span class="muted-line">Loading...</span>';
+    : `<span class="muted-line">${escapeHtml(uiText("Loading...", "\u52a0\u8f7d\u4e2d..."))}</span>`;
 }
 
 function addToolActivities(activities = []) {
@@ -1458,7 +1503,7 @@ function renderActivities() {
   activityCount.textContent = String(toolActivities.length);
   activityList.innerHTML = toolActivities.length
     ? toolActivities.map((activity) => renderActivity(activity)).join("")
-    : '<p class="muted-line">No tool activity yet.</p>';
+    : `<p class="muted-line">${escapeHtml(uiText("No tool activity yet.", "\u6682\u65e0\u5de5\u5177\u8fd0\u884c\u8bb0\u5f55\u3002"))}</p>`;
   updateDiagnosticCount();
 }
 
@@ -1486,7 +1531,7 @@ function renderBackgroundTasks() {
           <b>${escapeHtml(formatTaskStatus(task.status))}</b>
         </div>
       `).join("")
-    : '<p class="muted-line">No background tasks yet.</p>';
+    : `<p class="muted-line">${escapeHtml(uiText("No background tasks yet.", "\u6682\u65e0\u540e\u53f0\u4efb\u52a1\u3002"))}</p>`;
   updateDiagnosticCount();
 }
 
@@ -1513,12 +1558,12 @@ function renderWorkItems() {
           </div>
           <div class="work-item-actions">
             <b>${escapeHtml(formatTaskStatus(item.status))}</b>
-            <button type="button" class="icon-text-button task-toggle" data-task-id="${escapeHtml(item.id)}">${item.status === "running" ? "Pause" : "Start"}</button>
-            <button type="button" class="icon-text-button task-archive" data-task-id="${escapeHtml(item.id)}">Archive</button>
+            <button type="button" class="icon-text-button task-toggle" data-task-id="${escapeHtml(item.id)}">${escapeHtml(item.status === "running" ? uiText("Pause", "\u6682\u505c") : uiText("Start", "\u5f00\u59cb"))}</button>
+            <button type="button" class="icon-text-button task-archive" data-task-id="${escapeHtml(item.id)}">${escapeHtml(uiText("Archive", "\u5f52\u6863"))}</button>
           </div>
         </article>
       `).join("")
-    : '<p class="muted-line">Tasks appear after the squad turns decisions into action.</p>';
+    : `<p class="muted-line">${escapeHtml(uiText("Tasks appear after the squad turns decisions into action.", "\u5c0f\u961f\u628a\u8ba8\u8bba\u8f6c\u6210\u884c\u52a8\u540e\uff0c\u4efb\u52a1\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc\u3002"))}</p>`;
 }
 
 function addInboxItem(item) {
@@ -1541,7 +1586,7 @@ function renderWorkspace() {
   inboxCount.textContent = String(visibleInboxItems.length);
   inboxList.innerHTML = visibleInboxItems.length
     ? visibleInboxItems.slice(0, 6).map((item) => renderInboxItem(item)).join("")
-    : '<p class="muted-line">Background discoveries will arrive here without interrupting the discussion.</p>';
+    : `<p class="muted-line">${escapeHtml(uiText("Background discoveries will arrive here without interrupting the discussion.", "\u540e\u53f0\u63a2\u7d22\u6709\u6536\u83b7\u65f6\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc\uff0c\u4e0d\u6253\u65ad\u4f1a\u8bae\u3002"))}</p>`;
   agentWorkspaceList.innerHTML = members.map((member) => {
     const assigned = workItems.filter((item) => item.ownerAgent === member.id && item.status !== "archived").length;
     const discoveries = visibleInboxItems.filter((item) => item.ownerAgent === member.id).length;
@@ -1549,7 +1594,7 @@ function renderWorkspace() {
     return `
       <div class="agent-workspace">
         <strong>${escapeHtml(member.name)}</strong>
-        <span>${assigned} assigned - ${background} active - ${discoveries} discoveries</span>
+        <span>${escapeHtml(formatWorkspaceStats({ assigned, background, discoveries }))}</span>
       </div>
     `;
   }).join("");
@@ -1557,12 +1602,22 @@ function renderWorkspace() {
   const decisions = Array.isArray(currentBrief.proposal) ? currentBrief.proposal.length : 0;
   const questions = Array.isArray(currentBrief.questions) ? currentBrief.questions.length : 0;
   sharedWorkspaceSummary.innerHTML = `
-    <div><b>Mission</b><span>${escapeHtml(meeting?.goal || "Open a room to create the shared mission.")}</span></div>
-    <div><b>Decisions</b><span>${decisions} current direction items</span></div>
-    <div><b>Open questions</b><span>${questions} unresolved items</span></div>
-    <div><b>Shared artifacts</b><span>${artifacts} brief artifacts</span></div>
-    <div><b>Activity log</b><span>${toolActivities.length} visible tool events</span></div>
+    <div><b>${escapeHtml(uiText("Mission", "\u76ee\u6807"))}</b><span>${escapeHtml(meeting?.goal || uiText("Open a room to create the shared mission.", "\u6253\u5f00\u4f1a\u8bae\u5ba4\u540e\uff0c\u5171\u4eab\u76ee\u6807\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc\u3002"))}</span></div>
+    <div><b>${escapeHtml(uiText("Decisions", "\u51b3\u7b56"))}</b><span>${escapeHtml(formatCountLine(decisions, "current direction item", "\u6761\u5f53\u524d\u65b9\u5411"))}</span></div>
+    <div><b>${escapeHtml(uiText("Open questions", "\u5f85\u786e\u8ba4\u95ee\u9898"))}</b><span>${escapeHtml(formatCountLine(questions, "unresolved item", "\u4e2a\u672a\u89e3\u95ee\u9898"))}</span></div>
+    <div><b>${escapeHtml(uiText("Shared artifacts", "\u5171\u4eab\u4ea7\u7269"))}</b><span>${escapeHtml(formatCountLine(artifacts, "brief artifact", "\u4efd\u7b80\u62a5\u4ea7\u7269"))}</span></div>
+    <div><b>${escapeHtml(uiText("Activity log", "\u6d3b\u52a8\u8bb0\u5f55"))}</b><span>${escapeHtml(formatCountLine(toolActivities.length, "visible tool event", "\u6761\u53ef\u89c1\u5de5\u5177\u4e8b\u4ef6"))}</span></div>
   `;
+}
+
+function formatWorkspaceStats({ assigned, background, discoveries }) {
+  if (language === "zh") return `${assigned} \u4e2a\u4efb\u52a1 - ${background} \u4e2a\u8fdb\u884c\u4e2d - ${discoveries} \u6761\u53d1\u73b0`;
+  return `${assigned} assigned - ${background} active - ${discoveries} discoveries`;
+}
+
+function formatCountLine(count, singular, zhUnit) {
+  if (language === "zh") return `${count} ${zhUnit}`;
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
 }
 
 function normalizeInboxItem(item) {
@@ -1675,6 +1730,13 @@ function getMemberName(id) {
   return members.find((member) => member.id === id)?.name || String(id || "Agent");
 }
 
+function formatMemberRole(member) {
+  if (language !== "zh") return member.role;
+  const defaultRole = defaultMembers.find((item) => item.id === member.id)?.role;
+  if (member.role !== defaultRole) return member.role;
+  return defaultRoleTranslations[member.id] || member.role;
+}
+
 function formatInboxImpact(impact) {
   if (impact === "decision-changing") return "Decision";
   if (impact === "useful") return "Research";
@@ -1728,10 +1790,10 @@ function renderUsageBreakdown() {
     .map(([name, count]) => `<li><span>${escapeHtml(name)}</span><b>${count} run${count === 1 ? "" : "s"}</b></li>`)
     .join("");
   usageBreakdown.innerHTML = `
-    <h4>Agents</h4>
-    <ul>${agentRows || "<li><span>No model usage yet.</span></li>"}</ul>
-    <h4>Tools</h4>
-    <ul>${toolRows || "<li><span>No tool usage yet.</span></li>"}</ul>
+    <h4>${escapeHtml(uiText("Agents", "Agent"))}</h4>
+    <ul>${agentRows || `<li><span>${escapeHtml(uiText("No model usage yet.", "\u6682\u65e0\u6a21\u578b\u7528\u91cf\u3002"))}</span></li>`}</ul>
+    <h4>${escapeHtml(uiText("Tools", "\u5de5\u5177"))}</h4>
+    <ul>${toolRows || `<li><span>${escapeHtml(uiText("No tool usage yet.", "\u6682\u65e0\u5de5\u5177\u7528\u91cf\u3002"))}</span></li>`}</ul>
   `;
   updateDiagnosticCount();
 }
@@ -1766,7 +1828,7 @@ function renderTrace() {
           ` : ""}
         </article>
       `).join("")
-    : '<p class="muted-line">Run trace events will appear here as the room works.</p>';
+    : `<p class="muted-line">${escapeHtml(uiText("Run trace events will appear here as the room works.", "\u4f1a\u8bae\u8fd0\u884c\u65f6\uff0c\u8ffd\u8e2a\u4e8b\u4ef6\u4f1a\u51fa\u73b0\u5728\u8fd9\u91cc\u3002"))}</p>`;
   updateDiagnosticCount();
 }
 
@@ -1963,7 +2025,7 @@ function renderActivity(activity) {
           data-agent-id="${escapeHtml(activity.agentId)}"
           data-automation-key="${escapeHtml(activity.automationKey)}"
           data-query="${escapeHtml(activity.query)}"
-        >Approve search</button>
+        >${escapeHtml(uiText("Approve search", "\u6279\u51c6\u68c0\u7d22"))}</button>
       </article>
     `;
   }
@@ -1972,11 +2034,11 @@ function renderActivity(activity) {
     <article class="activity-item">
       <div class="activity-title">
         <strong>${escapeHtml(heading)}</strong>
-        <span>auto</span>
+        <span>${escapeHtml(uiText("auto", "\u81ea\u52a8"))}</span>
       </div>
       <p>${escapeHtml(summary)}</p>
       <details>
-        <summary>View result</summary>
+        <summary>${escapeHtml(uiText("View result", "\u67e5\u770b\u7ed3\u679c"))}</summary>
         <div class="activity-result">${renderToolResult(activity.result)}</div>
       </details>
     </article>
@@ -2007,9 +2069,14 @@ function renderToolResult(result) {
   if (result && typeof result === "object" && result.kind === "artifact") {
     const tableCount = Array.isArray(result.data?.tables) ? result.data.tables.length : 0;
     const checklistCount = Array.isArray(result.data?.checklists) ? result.data.checklists.length : 0;
+    const meta = [
+      result.artifactType || "artifact",
+      formatCountLine(tableCount, "table", "\u4e2a\u8868\u683c"),
+      formatCountLine(checklistCount, "checklist item", "\u4e2a\u68c0\u67e5\u9879")
+    ].join(" - ");
     return `
       <div class="brief-markdown">${renderMarkdown(result.markdown || "")}</div>
-      <p class="artifact-meta">${escapeHtml(result.artifactType || "artifact")} · ${tableCount} table${tableCount === 1 ? "" : "s"} · ${checklistCount} checklist item${checklistCount === 1 ? "" : "s"}</p>
+      <p class="artifact-meta">${escapeHtml(meta)}</p>
     `;
   }
   if (Array.isArray(result)) {
@@ -2020,14 +2087,14 @@ function renderToolResult(result) {
       return `<li>${renderMarkdown(item.title || String(item))}</li>`;
     }).join("")}</ul>`;
   }
-  return `<div class="brief-markdown">${renderMarkdown(String(result || "Completed."))}</div>`;
+  return `<div class="brief-markdown">${renderMarkdown(String(result || uiText("Completed.", "\u5df2\u5b8c\u6210\u3002")))}</div>`;
 }
 
 activityList.addEventListener("click", async (event) => {
   const button = event.target.closest(".approve-search");
   if (!button) return;
   button.disabled = true;
-  button.textContent = "Searching...";
+  button.textContent = uiText("Searching...", "\u68c0\u7d22\u4e2d...");
   try {
     const response = await postJson("/api/tools/execute", {
       toolId: "web_search",
@@ -2043,7 +2110,7 @@ activityList.addEventListener("click", async (event) => {
     addSystemMessage("Approved web research is complete. The sources were added to the squad's shared context for the next turn.", "Research");
   } catch (error) {
     button.disabled = false;
-    button.textContent = "Retry search";
+    button.textContent = uiText("Retry search", "\u91cd\u8bd5\u68c0\u7d22");
     addSystemMessage(error.message || "Web research failed.", "Tool Error");
   }
 });

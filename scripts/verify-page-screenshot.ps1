@@ -3,6 +3,7 @@ param(
   [string]$Output = "tmp-pages-screenshot.png",
   [int]$Width = 1440,
   [int]$Height = 1200,
+  [int]$WaitMs = 1200,
   [string]$ExpectedText = "Squad Room",
   [switch]$SkipContentCheck,
   [switch]$VerboseBrowserLog
@@ -140,6 +141,7 @@ foreach ($attempt in $attempts) {
     "--disable-extensions"
     "--user-data-dir=$profileDir"
     "--window-size=$Width,$Height"
+    "--virtual-time-budget=$WaitMs"
     "--screenshot=$outputPath"
     $Url
   )
